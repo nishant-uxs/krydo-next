@@ -1,0 +1,81 @@
+# Render Blueprint for Krydo.
+# Deploys the Express server + built Vite SPA as one web service.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Usage:
+#   1. Push this repo to GitHub (already at github.com/nishant-uxs/krydo).
+#   2. In Render dashboard → "New +" → "Blueprint" → pick this repo.
+#   3. Fill in the `sync: false` secrets in the Render UI (never commit them).
+#   4. Deploy. Liveness probe hits /healthz, readiness probe hits /readyz.
+#
+# What this file does NOT do:
+#   - It does NOT auto-provision the Firebase Admin SDK credential file.
+#     Paste the whole service-account JSON into FIREBASE_SERVICE_ACCOUNT.
+#     `server/config.ts` reads it directly from the env.
+#   - It does NOT cover the Soroban contract deploy (that's a one-off
+#     `npm run deploy:contracts` from your laptop, not part of CI).
+
+services:
+  - type: web
+    name: krydo
+    runtime: node
+    plan: free # bump to `starter` or higher for real traffic + no cold starts
+    region: oregon # or `frankfurt` / `singapore` — pick closest to users
+    branch: main
+    # Build workaround for npm/cli#4828.
+    #   - Our lockfile is generated on Windows, which locks the Windows-only
+    #     rollup binary (@rollup/rollup-win32-x64-msvc).
+    #   - On Render (Linux), `npm ci` / `npm install` honour the lockfile
+    #     literally, so the Linux binary (@rollup/rollup-linux-x64-gnu)
+    #     is never fetched -> vite build explodes.
+    #   - Deleting package-lock.json first forces npm to re-resolve the
+    #     platform-correct optional dependencies from scratch.
+    # If we ever move CI lockfile generation into a Linux container we can
+    # drop this prefix and go back to plain `npm ci`.
+    buildCommand: rm -f package-lock.json && npm install --include=optional && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "20"
+      - key: PORT
+        value: "5000"
+
+      # --- Firebase Admin ---
+      # Paste the entire service-account JSON as a single string here.
+      # server/config.ts supports FIREBASE_SERVICE_ACCOUNT as an alternative
+      # to GOOGLE_APPLICATION_CREDENTIALS (which expects a file path — not
+      # great on Render's ephemeral filesystem).
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+
+      # --- Stellar / Soroban ---
+      - key: STELLAR_NETWORK
+        value: testnet
+      - key: SOROBAN_RPC_URL
+        sync: false
+      - key: DEPLOYER_SECRET
+        sync: false
+
+      # --- Auth ---
+      - key: SESSION_SECRET
+        generateValue: true # Render auto-generates a 256-bit random string
+      - key: JWT_SECRET
+        generateValue: true
+
+      # --- Security ---
+      # Comma-separated list of public origins that may call the API.
+      # Set this to your Render URL (and custom domain if any) once deployed,
+      # e.g. "https://krydo.onrender.com,https://krydo.app".
+      - key: CORS_ORIGINS
+        sync: false
+
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX
+        value: "120"
