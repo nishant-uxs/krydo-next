@@ -9,6 +9,7 @@ import { registerCredentialRoutes } from "./routes/credentials";
 import { registerCredentialRequestRoutes } from "./routes/credential-requests";
 import { registerStatsRoutes } from "./routes/stats";
 import { registerZkRoutes } from "./routes/zk";
+import { registerPresentationRoutes } from "./routes/presentations";
 import { registerHealthRoutes } from "./routes/health";
 import { childLogger } from "./logger";
 
@@ -43,6 +44,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerCredentialRequestRoutes(app);
   registerStatsRoutes(app);
   registerZkRoutes(app);
+  registerPresentationRoutes(app);
 
   return httpServer;
 }

@@ -14,6 +14,8 @@ import {
 } from "../blockchain";
 import { CREDENTIALS_ID, AUDIT_ID, NETWORK_LABEL } from "@shared/contracts";
 import { requireAuth, requireRole } from "../auth/jwt";
+import { canAccessCredential, requireSelfAddress } from "../auth/authorize";
+import { toPublicCredentialView } from "../privacy/public-credential";
 import { sensitiveLimiter } from "../middleware/security";
 import { readPageOpts, sendPage } from "../middleware/pagination";
 import { childLogger } from "../logger";
@@ -22,11 +24,22 @@ const log = childLogger("routes/credentials");
 
 /**
  * Credential CRUD + verification + renewal.
+ *
+ * Route classification (P0):
+ *   Public              — POST /api/verify (status-only; no claimData)
+ *   Auth + self         — GET /api/credentials/:address
+ *   Auth + self (issuer)— GET /api/credentials/issued/:address
+ *   Auth + owner/issuer — GET /api/credentials/:id/vc (contains subject claims)
+ *   Auth + role         — issue / revoke / renew / anchor
  */
 export function registerCredentialRoutes(app: Express) {
-  app.get("/api/credentials/:address", async (req, res) => {
+  app.get(
+    "/api/credentials/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const opts = readPageOpts(req);
       const wallet = await storage.getWallet(address);
       if (!wallet) return sendPage(res, { items: [], nextCursor: null });
@@ -34,7 +47,7 @@ export function registerCredentialRoutes(app: Express) {
         ? await storage.listAllCredentialsPaged(opts)
         : await storage.listCredentialsForHolderPaged(address, opts);
 
-      // Optional in-memory filtering. We do it post-Firestore to keep the
+      // Optional in-memory filtering. We do it post-firestore to keep the
       // query surface tiny — current page sizes are small (<=200) so the
       // cost is negligible. Swap for Firestore composite indexes if page
       // sizes ever grow meaningfully.
@@ -50,30 +63,32 @@ export function registerCredentialRoutes(app: Express) {
         );
       }
       sendPage(res, { items, nextCursor: page.nextCursor });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 
-  app.get("/api/credentials/issued/:address", async (req, res) => {
+  app.get(
+    "/api/credentials/issued/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const page = await storage.listCredentialsByIssuerPaged(address, readPageOpts(req));
       sendPage(res, page);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 
   // --- W3C Verifiable Credentials Data Model v2 export -----------------
-  // Renders an internal Krydo credential in the standard W3C VC v2 shape
-  // so external verifiers / DID tooling (Veramo, Ceramic, Walt.id, Trinsic,
-  // Microsoft Entra, etc.) can consume it unmodified. Pure view layer —
-  // internal storage is unchanged.
-  //
-  // Public by design: VCs are portable, shareable documents. The sensitive
-  // path is *issuing* (which stays gated behind requireAuth + requireRole).
-  app.get("/api/credentials/:id/vc", async (req, res) => {
+  // Renders an internal Krydo credential in the standard W3C VC v2 shape.
+  // The VC embeds credentialSubject claims (from claimData), so this is
+  // NOT public — only the holder, issuer, or root may export it.
+  app.get("/api/credentials/:id/vc", requireAuth, async (req, res) => {
     try {
       const id = req.params.id as string;
       // Basic shape check so we don't collide with the /:address route
@@ -82,7 +97,10 @@ export function registerCredentialRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid credential id" });
       }
       const cred = await storage.getCredentialById(id);
-      if (!cred) return res.status(404).json({ message: "Credential not found" });
+      // 404 for both missing and unauthorized — avoid existence oracle.
+      if (!cred || !canAccessCredential(req.auth!, cred)) {
+        return res.status(404).json({ message: "Credential not found" });
+      }
 
       const issuer = await storage.getIssuerByAddress(cred.issuerAddress);
       const baseUrl = `${req.protocol}://${req.get("host")}/api/credentials`;
@@ -93,9 +111,9 @@ export function registerCredentialRoutes(app: Express) {
 
       res.setHeader("Content-Type", "application/vc+ld+json; charset=utf-8");
       res.json(vc);
-    } catch (error: any) {
-      log.error({ err: error }, "failed to render VC");
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      log.error({ err: error instanceof Error ? error.message : String(error) }, "failed to render VC");
+      res.status(500).json({ message: "Failed to render verifiable credential" });
     }
   });
 
@@ -390,10 +408,19 @@ export function registerCredentialRoutes(app: Express) {
     }
   });
 
+  /**
+   * Public credential verification — status / trust only.
+   *
+   * Deliberately does NOT return claimData or claimSummary. Arbitrary
+   * verifiers learn existence, hash, issuer trust, and lifecycle status.
+   * Plaintext claims stay off this path.
+   */
   app.post("/api/verify", async (req, res) => {
     try {
       const { credentialHash } = req.body;
-      if (!credentialHash) return res.status(400).json({ message: "credentialHash is required" });
+      if (!credentialHash || typeof credentialHash !== "string") {
+        return res.status(400).json({ message: "credentialHash is required" });
+      }
 
       let credential = await storage.getCredentialByHash(credentialHash);
       if (!credential) credential = await storage.getCredentialById(credentialHash);
@@ -404,6 +431,10 @@ export function registerCredentialRoutes(app: Express) {
           issuerName: null,
           issuerActive: false,
           onChain: false,
+          verification: {
+            onChainAnchor: false,
+            issuerTrusted: false,
+          },
           message: "No credential found with this hash or ID",
         });
       }
@@ -413,6 +444,7 @@ export function registerCredentialRoutes(app: Express) {
         ? new Date(credential.expiresAt) < new Date()
         : false;
       const isActive = credential.status === "active" && !isExpired;
+      const issuerTrusted = issuer?.active ?? false;
 
       let onChainVerified = false;
       if (isBlockchainReady()) {
@@ -424,16 +456,38 @@ export function registerCredentialRoutes(app: Express) {
         }
       }
 
+      const publicCredential = toPublicCredentialView(credential);
+      let message: string;
+      if (isActive) {
+        message = "Credential is valid and active";
+      } else if (isExpired) {
+        message = "Credential is expired";
+      } else {
+        message = `Credential is ${credential.status}`;
+      }
+
       res.json({
         valid: isActive,
-        credential,
+        credential: publicCredential,
+        credentialHash: publicCredential.credentialHash,
+        status: isExpired && credential.status === "active" ? "expired" : credential.status,
+        issuer: publicCredential.issuerAddress,
+        expiresAt: publicCredential.expiresAt,
         issuerName: issuer?.name || null,
-        issuerActive: issuer?.active ?? false,
+        issuerActive: issuerTrusted,
         onChain: onChainVerified,
-        message: isActive ? "Credential is valid and active" : `Credential is ${credential.status}`,
+        verification: {
+          onChainAnchor: onChainVerified,
+          issuerTrusted,
+        },
+        message,
       });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      log.error(
+        { err: error instanceof Error ? error.message : String(error) },
+        "public verify failed",
+      );
+      res.status(500).json({ message: "Verification failed" });
     }
   });
 

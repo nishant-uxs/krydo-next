@@ -23,6 +23,9 @@ krydo-*firebase-adminsdk*.json
 papers/
 *.local.md
 
+# Render CLI binary (install via scripts/install-render-cli.ps1)
+tools/render-cli/
+
 # LaTeX build artifacts (keep .tex source + .pdf output)
 docs/*.aux
 docs/*.log

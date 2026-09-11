@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
+import { requireAuth } from "../auth/jwt";
+import { requireSelfAddress } from "../auth/authorize";
 import { readPageOpts, sendPage } from "../middleware/pagination";
 
 /** Millisecond threshold: credentials expiring within 30 days count as "expiring soon". */
@@ -8,56 +10,76 @@ const EXPIRING_SOON_WINDOW_MS = 30 * 86_400_000;
 /**
  * Dashboard statistics + transaction history endpoints.
  *
- * Root wallets see global stats/transactions; everyone else sees their own.
+ * All address-scoped reads require auth + self (IDOR hardening).
+ * Root wallets still see global stats/transactions when calling with their
+ * own address (server expands based on wallet.role === "root").
  */
 export function registerStatsRoutes(app: Express) {
-  app.get("/api/stats/:address", async (req, res) => {
+  app.get(
+    "/api/stats/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const wallet = await storage.getWallet(address);
       const role = wallet?.role || "user";
       res.json(await storage.getStats(address, role));
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 
-  app.get("/api/transactions/:address", async (req, res) => {
+  app.get(
+    "/api/transactions/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const opts = readPageOpts(req);
       const wallet = await storage.getWallet(address);
       const page = wallet?.role === "root"
         ? await storage.listTransactionsPaged(undefined, opts)
         : await storage.listTransactionsPaged(address, opts);
       sendPage(res, page);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 
-  app.get("/api/transactions/recent/:address", async (req, res) => {
+  app.get(
+    "/api/transactions/recent/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const wallet = await storage.getWallet(address);
       // Recent = small non-paginated list, capped at 10 items.
       const page = wallet?.role === "root"
         ? await storage.listTransactionsPaged(undefined, { limit: 10 })
         : await storage.listTransactionsPaged(address, { limit: 10 });
       res.json(page.items);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 
   /**
    * Issuer analytics — counts and buckets of everything this issuer has ever
-   * touched. Drives the issuer dashboard cards and lets a prospective issuer
-   * see the value of participating in the network at a glance.
+   * touched. Auth + self required (aggregate counts still reveal activity).
    */
-  app.get("/api/stats/issuer/:address", async (req, res) => {
+  app.get(
+    "/api/stats/issuer/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const issuer = await storage.getIssuerByAddress(address);
       if (!issuer) return res.status(404).json({ message: "Issuer not found" });
 
@@ -94,8 +116,9 @@ export function registerStatsRoutes(app: Express) {
         byClaimType,
         generatedAt: new Date().toISOString(),
       });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 }

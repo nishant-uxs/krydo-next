@@ -619,15 +619,14 @@ export default function Landing() {
                           </div>
                           <div>
                             <Badge className="bg-chart-2/10 text-chart-2 border-chart-2/20 no-default-active-elevate text-[10px] font-bold">STAGE 02</Badge>
-                            <h3 className="font-serif font-bold text-lg text-foreground">In-Browser Zero-Knowledge Proving</h3>
+                            <h3 className="font-serif font-bold text-lg text-foreground">Zero-Knowledge Proving</h3>
                           </div>
                         </div>
-                        <Badge variant="secondary" className="font-mono text-[9px] bg-chart-2/15 text-chart-2 border-none">LOCAL COMPUTE</Badge>
+                        <Badge variant="secondary" className="font-mono text-[9px] bg-chart-2/15 text-chart-2 border-none">BACKEND PROVER</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground/80 leading-relaxed font-sans">
-                        The user generates a Sigma-protocol proof locally in their browser. 
-                        They construct a mathematical statement: "My salary is above threshold X" or "My credit score is above 750". 
-                        The raw data never leaves the user's wallet, ensuring absolute self-sovereignty.
+                        Current implementation: proof generation is performed by the Krydo backend from the holder's stored credential claims.
+                        Client-side proving is a planned privacy hardening step. The verifier learns only the predicate result — not the raw value.
                       </p>
                     </div>
 
@@ -808,9 +807,9 @@ export default function Landing() {
             <Badge variant="secondary" className="mb-3 py-1 px-3 bg-chart-3/10 text-chart-3 border-chart-3/20 no-default-active-elevate">
               Live Cryptographic Playground
             </Badge>
-            <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4 tracking-tight">Interactive Local Prover Sandbox</h2>
+            <h2 className="font-serif text-3xl md:text-4xl font-bold mb-4 tracking-tight">Interactive Prover Sandbox</h2>
             <p className="text-muted-foreground font-sans text-sm md:text-base">
-              Drag the parameters to generate an instant mathematical zero-knowledge proof in your browser, then submit it to Soroban.
+              Explore Sigma-protocol parameters. In production, proof generation is performed by the Krydo backend; client-side proving is planned.
             </p>
           </div>
 

@@ -66,9 +66,15 @@ async function buildApp(options: CreateAppOptions): Promise<AppBundle> {
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    // Never echo stack traces or internal details to clients in production.
+    const rawMessage = err.message || "Internal Server Error";
+    const message =
+      config.isProd && status >= 500 ? "Internal Server Error" : rawMessage;
 
-    logger.error({ err: err.message ?? String(err), status, stack: err.stack }, "internal server error");
+    logger.error(
+      { err: rawMessage, status, stack: config.isProd ? undefined : err.stack },
+      "internal server error",
+    );
 
     if (res.headersSent) {
       return next(err);

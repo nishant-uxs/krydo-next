@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 
 /**
  * Tests for the JWT helpers + auth middlewares. We mock `../config` so these
@@ -65,6 +66,43 @@ describe("auth/jwt — token helpers", () => {
     // Base64 of {alg:"none", typ:"JWT"}.{sub:"x"}.sig
     const unsigned = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.";
     expect(verifyAuthToken(unsigned)).toBeNull();
+  });
+
+  it("verifyAuthToken returns null on invalid signature", () => {
+    const token = signAuthToken({
+      sub: "GTESTADDR0000000000000000000000000000000000000000000",
+      role: "user",
+    });
+    const [h, p] = token.split(".");
+    const tampered = `${h}.${p}.dGFtcGVyZWQ`;
+    expect(verifyAuthToken(tampered)).toBeNull();
+  });
+
+  it("verifyAuthToken returns null on expired token", () => {
+    const expired = jwt.sign(
+      {
+        sub: "GTESTADDR0000000000000000000000000000000000000000000",
+        role: "user",
+        exp: Math.floor(Date.now() / 1000) - 60,
+      },
+      "test-secret-that-is-at-least-32-chars-long-for-vitest",
+      {
+        algorithm: "HS256",
+        issuer: "krydo",
+        audience: "krydo-api",
+      },
+    );
+    expect(verifyAuthToken(expired)).toBeNull();
+  });
+
+  it("signed tokens carry iss/aud claims", () => {
+    const token = signAuthToken({
+      sub: "GTESTADDR0000000000000000000000000000000000000000000",
+      role: "user",
+    });
+    const decoded = verifyAuthToken(token);
+    expect(decoded!.iss).toBe("krydo");
+    expect(decoded!.aud).toBe("krydo-api");
   });
 });
 

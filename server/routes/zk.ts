@@ -8,6 +8,7 @@ import {
   isChainReadable,
 } from "../blockchain";
 import { requireAuth } from "../auth/jwt";
+import { requireSelfAddress } from "../auth/authorize";
 import { sensitiveLimiter } from "../middleware/security";
 import { readPageOpts, sendPage } from "../middleware/pagination";
 import { childLogger } from "../logger";
@@ -16,10 +17,24 @@ const log = childLogger("routes/zk");
 
 /**
  * ZK proof generation + verification + history.
+ *
+ * TRUST BOUNDARY (current implementation):
+ *   POST /api/zk/generate runs on the Krydo backend. The server reads
+ *   plaintext `claimData` from Firestore and builds the Sigma proof.
+ *   This is NOT browser/device-only proving. Client-side proving is a
+ *   planned privacy hardening step — do not describe this path as
+ *   "server never sees your claims".
+ *
+ * Public by design:
+ *   POST /api/zk/verify  — cryptographic + semantic verdict (no claimData)
+ *   GET  /api/zk/share/:id — shareable proof metadata (no claimData)
+ * Auth + self:
+ *   GET  /api/zk/proofs/:address
  */
 export function registerZkRoutes(app: Express) {
   app.post("/api/zk/generate", requireAuth, sensitiveLimiter, async (req, res) => {
     try {
+      // Server-side prover: plaintext claims are loaded from Firestore below.
       const { generateZkProof } = await import("../zk-engine");
       const schema = z.object({
         credentialId: z.string().uuid(),
@@ -58,6 +73,7 @@ export function registerZkRoutes(app: Express) {
         return res.status(400).json({ message: "Cannot generate proof for expired credential" });
       }
 
+      // Plaintext claim access — trust boundary: Krydo backend sees claimData.
       const claimData = credential.claimData as {
         value?: string;
         type?: string;
@@ -75,18 +91,21 @@ export function registerZkRoutes(app: Express) {
       // Important: an empty string MUST NOT be coerced to 0 (Number('') === 0),
       // otherwise a credential with no value would cap every range_above to
       // threshold ≤ 0 and break the flow.
+      // Do not log claimValue / claimData.
       if (data.proofType === "range_above" || data.proofType === "range_below") {
         const trimmed = String(claimValue).trim();
         const numeric = trimmed === "" ? NaN : Number(trimmed);
         if (Number.isFinite(numeric) && data.threshold !== undefined) {
           if (data.proofType === "range_above" && data.threshold > numeric) {
             return res.status(400).json({
-              message: `Threshold ${data.threshold} exceeds credential value ${numeric}. Cannot prove a claim stronger than the credential itself.`,
+              message:
+                "Threshold exceeds the credential value. Cannot prove a claim stronger than the credential itself.",
             });
           }
           if (data.proofType === "range_below" && data.threshold < numeric) {
             return res.status(400).json({
-              message: `Threshold ${data.threshold} is below credential value ${numeric}. Cannot prove a claim stronger than the credential itself.`,
+              message:
+                "Threshold is below the credential value. Cannot prove a claim stronger than the credential itself.",
             });
           }
         }
@@ -356,7 +375,6 @@ export function registerZkRoutes(app: Express) {
         credential: credential
           ? {
               claimType: credential.claimType,
-              claimSummary: credential.claimSummary,
               status: credential.status,
               holderAddress: credential.holderAddress,
               issuerAddress: credential.issuerAddress,
@@ -368,26 +386,31 @@ export function registerZkRoutes(app: Express) {
         issuerActive: issuer?.active ?? false,
         onChainVerified,
       });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Verification failed";
+      res.status(500).json({ message });
     }
   });
 
-  app.get("/api/zk/proofs/:address", async (req, res) => {
+  app.get(
+    "/api/zk/proofs/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const page = await storage.listZkProofsByProverPaged(address, readPageOpts(req));
       sendPage(res, page);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 
   /**
    * Public share endpoint. Returns a pared-down, safe-to-share view of a proof
    * so anyone with the URL can render the verify page without auth. We
-   * deliberately omit the prover's identity (proofs are pseudonymous) and the
-   * cryptographic witness (still reachable via /api/zk/verify).
+   * deliberately omit the prover's identity, plaintext claims, and claimSummary.
    */
   app.get("/api/zk/share/:id", async (req, res) => {
     try {
@@ -406,13 +429,11 @@ export function registerZkRoutes(app: Express) {
         expiresAt: proof.expiresAt,
         publicInputs: proof.publicInputs,
         onChainTxHash: proof.onChainTxHash,
-        claim: credential
-          ? { type: credential.claimType, summary: credential.claimSummary }
-          : null,
+        claim: credential ? { type: credential.claimType } : null,
         issuer: issuer ? { name: issuer.name, active: issuer.active } : null,
       });
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      res.status(500).json({ message: "Failed to load shared proof" });
     }
   });
 }

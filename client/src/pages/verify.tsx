@@ -58,13 +58,29 @@ const zkVerifySchema = z.object({
   proofId: z.string().min(1, "ZK Proof ID is required"),
 });
 
+/** Public verify response — claimData / claimSummary are intentionally absent. */
 interface VerificationResult {
   valid: boolean;
-  credential: Credential | null;
+  credential: Pick<
+    Credential,
+    | "id"
+    | "credentialHash"
+    | "issuerAddress"
+    | "holderAddress"
+    | "claimType"
+    | "status"
+    | "issuedAt"
+    | "expiresAt"
+    | "revokedAt"
+  > | null;
   issuerName: string | null;
   issuerActive: boolean;
   onChain: boolean;
   message: string;
+  verification?: {
+    onChainAnchor: boolean;
+    issuerTrusted: boolean;
+  };
 }
 
 interface ZkVerificationResult {
@@ -90,7 +106,6 @@ interface ZkVerificationResult {
   };
   credential: {
     claimType: string;
-    claimSummary: string;
     status: string;
     holderAddress: string;
   } | null;

@@ -4,10 +4,12 @@ import { config } from "../config";
 import type { WalletRole } from "@shared/schema";
 
 export interface AuthPayload {
-  sub: string; // lowercased wallet address
+  sub: string; // Stellar StrKey wallet address (case-sensitive)
   role: WalletRole;
   iat?: number;
   exp?: number;
+  iss?: string;
+  aud?: string | string[];
 }
 
 declare global {
@@ -19,17 +21,52 @@ declare global {
   }
 }
 
+/** Keep 7d TTL — product has no refresh-token path yet. */
 const TOKEN_TTL = "7d";
 
-export function signAuthToken(payload: Omit<AuthPayload, "iat" | "exp">): string {
-  return jwt.sign(payload, config.JWT_SECRET, { expiresIn: TOKEN_TTL });
+/**
+ * Explicit JWT constraints.
+ * - HS256 only (rejects alg=none / RS* confusion)
+ * - iss/aud bound so tokens are not reusable across unrelated services
+ *
+ * Remaining limitation: no server-side revocation list / jti denylist.
+ * Compromised tokens remain valid until exp unless JWT_SECRET is rotated.
+ */
+const JWT_ISSUER = "krydo";
+const JWT_AUDIENCE = "krydo-api";
+
+const SIGN_OPTIONS: jwt.SignOptions = {
+  expiresIn: TOKEN_TTL,
+  algorithm: "HS256",
+  issuer: JWT_ISSUER,
+  audience: JWT_AUDIENCE,
+};
+
+const VERIFY_OPTIONS: jwt.VerifyOptions = {
+  algorithms: ["HS256"],
+  issuer: JWT_ISSUER,
+  audience: JWT_AUDIENCE,
+};
+
+export function signAuthToken(payload: Omit<AuthPayload, "iat" | "exp" | "iss" | "aud">): string {
+  // Payload is intentionally minimal: wallet address + role only.
+  return jwt.sign({ sub: payload.sub, role: payload.role }, config.JWT_SECRET, SIGN_OPTIONS);
 }
 
 export function verifyAuthToken(token: string): AuthPayload | null {
   try {
-    const decoded = jwt.verify(token, config.JWT_SECRET);
+    const decoded = jwt.verify(token, config.JWT_SECRET, VERIFY_OPTIONS);
     if (typeof decoded !== "object" || decoded === null) return null;
-    return decoded as AuthPayload;
+    const obj = decoded as jwt.JwtPayload;
+    if (typeof obj.sub !== "string" || typeof obj.role !== "string") return null;
+    return {
+      sub: obj.sub,
+      role: obj.role as WalletRole,
+      iat: typeof obj.iat === "number" ? obj.iat : undefined,
+      exp: typeof obj.exp === "number" ? obj.exp : undefined,
+      iss: typeof obj.iss === "string" ? obj.iss : undefined,
+      aud: obj.aud,
+    };
   } catch {
     return null;
   }

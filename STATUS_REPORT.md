@@ -32,7 +32,7 @@
 ### Core loop (already works on Stellar)
 1. Root whitelists issuers (`KrydoAuthority`)  
 2. Issuer issues credential hash on-chain + payload off-chain (`KrydoCredentials`)  
-3. Holder generates Sigma/Pedersen ZK proof (browser / API)  
+3. Holder generates Sigma/Pedersen ZK proof via authenticated API (server-side prover today; client-side proving planned)  
 4. Verifier learns only pass/fail (+ can check revoke)  
 5. Audit anchors optional (`KrydoAudit`)  
 
@@ -52,11 +52,11 @@
 ### Gaps (honest)
 | Gap | Status |
 |-----|--------|
-| Verifiable **Presentation** (VP) import/export | Missing / incomplete vs VC export |
+| Verifiable **Presentation** (VP) import/export | **P1 foundation done** — request/challenge/audience/replay (`PRESENTATIONS.md`); mobile wallet signing later |
 | Public standard **`POST /verify`** for third parties | Not a clean integrator API yet |
 | Standard **QR → VP** payload | QR exists; not fully “interop standard” story |
 | DigiLocker / India-stack **issuer adapter** | Idea only |
-| **Mobile app** | Not started (correct — should be thin verifier later) |
+| **Mobile app** | **v1 foundation** in `apps/mobile` (Expo + deep links + mock prover) — not real on-device ZK yet |
 | Multi-network polish | Testnet first; mainnet docs exist |
 | Compound policies (AND/OR predicates) | Limited vs roadmap |
 | Time-bound / replay-safe presentations | Weak / missing |

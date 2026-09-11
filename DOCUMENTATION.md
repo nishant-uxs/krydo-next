@@ -32,6 +32,7 @@
 16. [Security layers](#16-security-layers)
 17. [Deployment topology](#17-deployment-topology)
 18. [Observability & operations](#18-observability--operations)
+19. [Verifiable Presentations](#19-verifiable-presentations)
 
 ---
 
@@ -44,7 +45,7 @@ flowchart LR
     subgraph Client["Client (browser)"]
         UI["React SPA<br/>(Vite, shadcn/ui)"]
         KIT["Stellar Wallets Kit<br/>(Freighter, xBull, Lobstr, …)"]
-        ZKC["zk-engine (client mirror)"]
+        ZKC["wallet UX / proof UI"]
         UI --> KIT
         UI --> ZKC
     end
@@ -53,7 +54,7 @@ flowchart LR
         API["HTTP API<br/>JSON + JWT"]
         AUTHM["auth middleware<br/>requireAuth / requireRole"]
         VAL["Zod validators"]
-        ZKE["zk-engine<br/>(Pedersen + sigma)"]
+        ZKE["zk-engine<br/>(server-side prover today)"]
         STORE["Storage abstraction"]
         BC["Blockchain adapter<br/>@stellar/stellar-sdk"]
         API --> AUTHM --> VAL
@@ -491,7 +492,7 @@ mindmap
 
 ## 10. ZK proof generation
 
-Generation is entirely off-chain. The holder never sends their secret to the server — only the commitment and the proof. The API route is a thin wrapper around the engine, plus defense-in-depth validation (no threshold > actual value, no range proofs on non-numeric credentials, etc.).
+Generation runs on the Krydo backend today. The authenticated holder calls `POST /api/zk/generate`; the API loads plaintext `claimData` from Firestore and builds the Sigma proof. **Current implementation: proof generation is performed by the Krydo backend. Client-side proving is a planned privacy hardening step.** Do not describe this path as “server never sees your claims.”
 
 ```mermaid
 sequenceDiagram
@@ -502,7 +503,7 @@ sequenceDiagram
     participant FS as Firestore
 
     H->>API: POST /api/zk/generate<br/>{ credentialId, proofType, threshold?, targetValue?, memberSet?, ttlDays }
-    API->>API: requireAuth, requireSelf(proverAddress)
+    API->>API: requireAuth (prover = JWT sub)
     API->>FS: read credential by id
     FS-->>API: { claimData, claimHash, status, expiresAt }
 
@@ -517,7 +518,7 @@ sequenceDiagram
     API->>FS: persist proof<br/>expiresAt = min(ttl, cred.expiresAt)
     API-->>H: { proofId, commitment, shareUrl }
 
-    Note over H,API: No wallet interaction.<br/>No network fee. No on-chain tx.<br/>Holder shares proofId with verifier.
+    Note over H,API: Trust boundary: server sees plaintext claims.<br/>No wallet interaction for proving itself.
 ```
 
 ### Off-chain design decision
@@ -741,6 +742,11 @@ mindmap
       POST /:id/anchor
       POST /:id/revoke
       GET /share/:id
+    presentations
+      POST /request
+      GET /request/:id
+      POST /create
+      POST /verify
     stats
       GET /
       GET /issuer/:addr
@@ -931,9 +937,37 @@ Sensitive headers (`authorization`, `cookie`) are redacted automatically.
 
 ---
 
+## 19. Verifiable Presentations
+
+See **[`PRESENTATIONS.md`](./PRESENTATIONS.md)** for the full request/VP/verify protocol.
+
+Short flow:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor V as Verifier
+    participant API as Krydo API
+    actor H as Holder
+
+    V->>API: POST /api/presentations/request (JWT)
+    API-->>V: { requestId, challenge, audience, deepLink }
+    V->>H: share deep link / requestId
+    H->>API: GET /api/presentations/request/:id
+    H->>API: POST /api/presentations/create (JWT holder)
+    API-->>H: VerifiablePresentation
+    H->>V: VP
+    V->>API: POST /api/presentations/verify
+    API-->>V: { valid, checks } (no claimData)
+    Note over API: challenge consumed — replay rejected
+```
+
+---
+
 ## Further reading
 
 - **Project overview & quick start:** [`README.md`](./README.md)
+- **Verifiable Presentations (P1):** [`PRESENTATIONS.md`](./PRESENTATIONS.md)
 - **Contributing guide + commit style:** [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - **Security disclosure policy:** [`SECURITY.md`](./SECURITY.md)
 - **Deployment specifics (Vercel / Render, indexes):** [`DEPLOY.md`](./DEPLOY.md)

@@ -13,6 +13,13 @@ import {
  * Pedersen commitments. Replaces the previous hash-only placeholder with real
  * commitment-based proofs that a verifier can actually trust.
  *
+ * TRUST BOUNDARY (do not misrepresent):
+ *   Current implementation: proof generation is performed by the Krydo
+ *   backend (`POST /api/zk/generate`), which supplies plaintext claim values
+ *   read from Firestore. This module does not run in the browser today.
+ *   Client-side / device-only proving is a planned privacy hardening step.
+ *   Do not claim that the server never sees plaintext claims.
+ *
  * Proof types supported:
  *   - range_above     : prove  value >= threshold,   threshold public
  *   - range_below     : prove  value <= threshold,   threshold public

@@ -69,10 +69,13 @@ Please include:
 These are public design choices, not vulnerabilities:
 
 - **Credentials plaintext lives in Firestore**, not on-chain. Losing Firestore makes commitments un-openable. Mitigation: migrate to IPFS/Arweave with user-held keys (planned).
+- **Server-side ZK proving.** `POST /api/zk/generate` reads plaintext `claimData` from Firestore and builds the proof on the Krydo backend. This is not browser/device-only. Mitigation: client-side proving (planned privacy hardening).
+- **SIWS nonces are in-memory.** Single-process: random, TTL, single-use, address-bound. Multi-instance / serverless replicas do not share the nonce store — use a persistent store for true horizontal safety.
+- **Presentation requests / challenges are in-memory** (same multi-instance caveat). Replay protection holds within one process; persist for horizontal scale.
+- **JWT has no revocation list.** Compromised tokens remain valid until expiry unless `JWT_SECRET` is rotated. TTL remains 7 days (no refresh-token path yet).
 - **Single-key root authority.** The deployer account (`G...`) is the root. Compromise = total compromise. Mitigation: migrate to a multi-sig / threshold-signed root account (planned).
 - **Off-chain ZK verifier.** Proofs are verified by our backend, not by a Soroban contract. A malicious backend could return false positives. Mitigation: ship an on-chain Groth16/PLONK verifier (planned).
-- **No W3C Verifiable Credentials conformance** yet. Interop with DID ecosystems is deliberately deferred.
-
+- **VP protocol is Krydo-native.** Presentation requests, challenge/audience binding, and replay exist (`PRESENTATIONS.md`). Holder device signatures and full W3C Data Integrity proofs are not implemented yet.
 ---
 
 ## Responsible disclosure philosophy

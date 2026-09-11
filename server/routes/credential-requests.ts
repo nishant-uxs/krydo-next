@@ -10,6 +10,7 @@ import {
 } from "../blockchain";
 import { AUDIT_ID, CREDENTIALS_ID } from "@shared/contracts";
 import { requireAuth, requireRole } from "../auth/jwt";
+import { requireSelfAddress } from "../auth/authorize";
 import { sensitiveLimiter } from "../middleware/security";
 import { readPageOpts, sendPage } from "../middleware/pagination";
 import { childLogger } from "../logger";
@@ -18,6 +19,9 @@ const log = childLogger("routes/credential-requests");
 
 /**
  * User-to-issuer credential request workflow.
+ *
+ * List endpoints are auth + self (IDOR hardening). Mutations already gate
+ * on requireAuth / requireRole.
  */
 export function registerCredentialRequestRoutes(app: Express) {
   app.post("/api/credential-requests", requireAuth, sensitiveLimiter, async (req, res) => {
@@ -210,23 +214,33 @@ export function registerCredentialRequestRoutes(app: Express) {
     }
   });
 
-  app.get("/api/credential-requests/user/:address", async (req, res) => {
+  app.get(
+    "/api/credential-requests/user/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const page = await storage.listCredentialRequestsByRequesterPaged(address, readPageOpts(req));
       sendPage(res, page);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 
-  app.get("/api/credential-requests/issuer/:address", async (req, res) => {
+  app.get(
+    "/api/credential-requests/issuer/:address",
+    requireAuth,
+    requireSelfAddress("address"),
+    async (req, res) => {
     try {
-      const { address } = req.params;
+      const address = req.params.address as string;
       const page = await storage.listCredentialRequestsForIssuerPaged(address, readPageOpts(req));
       sendPage(res, page);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Internal server error";
+      res.status(500).json({ message });
     }
   });
 

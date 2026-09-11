@@ -39,7 +39,7 @@ Three Soroban contracts, one purpose each: `KrydoAuthority` owns the issuer whit
 
 Current verification flows over-collect by default. A lender asking "do you earn at least ₹10 L?" gets the user's exact salary, employer, six months of bank statements, and often their PAN. That data leaks, gets re-sold, and can't be revoked once it's out.
 
-Zero-knowledge proofs solve the shape of this problem — prove the predicate, not the value — but SNARK-based stacks force circuits, trusted setup, and non-trivial cost. Krydo takes the simpler path: sigma protocols over Pedersen commitments on a prime-order elliptic curve. No setup ceremony, no circuit compiler, proofs generated in the browser in milliseconds, verification in the same API call that fetches the credential — and Stellar's sub-cent fees make anchoring effectively free.
+Zero-knowledge proofs solve the shape of this problem — prove the predicate, not the value — but SNARK-based stacks force circuits, trusted setup, and non-trivial cost. Krydo takes the simpler path: sigma protocols over Pedersen commitments on a prime-order elliptic curve. No setup ceremony, no circuit compiler. **Current implementation:** proof generation is performed by the Krydo backend from off-chain credential claims; client-side proving is a planned privacy hardening step. Verification is a separate API call, and Stellar's sub-cent fees make anchoring effectively free.
 
 ---
 
@@ -56,7 +56,7 @@ flowchart LR
 
     RA -- "whitelists<br/>(on-chain)" --> ISS
     ISS -- "issues credential<br/>(on-chain hash + off-chain data)" --> USR
-    USR -- "generates ZK proof<br/>(browser-side)" --> VER
+    USR -- "generates ZK proof<br/>(server-side prover today)" --> VER
     VER -- "verifies against<br/>on-chain anchor" --> RA
 
     RA -.-> KA["KrydoAuthority (Soroban)"]
@@ -83,9 +83,9 @@ sequenceDiagram
     Alice->>Chain: Employer signs KrydoCredentials.issue_credential(...)
     Chain-->>Alice: credential hash on-chain, plaintext off-chain
 
-    Note over Alice,Lender: Proof generation (off-chain; optional KrydoAudit anchor)
-    Alice->>Alice: C = v·G + r·H<br/>π = proveRange(v − threshold)
-    Alice->>Server: POST /api/zk/generate
+    Note over Alice,Lender: Proof generation (server-side prover today)
+    Alice->>Server: POST /api/zk/generate<br/>(auth; server reads claimData)
+    Server->>Server: C = v·G + r·H<br/>π = proveRange(…)
     Server-->>Alice: { proofId, commitment, credentialHash }
     opt public audit trail
         Alice->>Chain: wallet signs KrydoAudit.anchor(zkproof, …)
