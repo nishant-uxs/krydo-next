@@ -46,6 +46,13 @@ data class VerifyPresentationBody(
 )
 
 @Serializable
+data class CreatePresentationBody(
+    val requestId: String,
+    val credentialId: String,
+    val proofId: String? = null,
+)
+
+@Serializable
 data class CredentialStatusDto(
     val credentialHash: String? = null,
     val claimType: String? = null,
@@ -74,6 +81,19 @@ data class PresentationVerifyResultDto(
 @Serializable
 data class VerifyCredentialBody(
     val credentialHash: String,
+)
+
+@Serializable
+data class CredentialDto(
+    val id: String,
+    val credentialHash: String,
+    val issuerAddress: String,
+    val holderAddress: String,
+    val claimType: String,
+    val claimSummary: String? = null,
+    val status: String,
+    val issuedAt: String,
+    val expiresAt: String? = null,
 )
 
 class ApiException(

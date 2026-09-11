@@ -1,24 +1,39 @@
 package dev.krydo.mobile.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.krydo.mobile.ui.AppViewModel
+import dev.krydo.mobile.ui.components.IdentityCore
+import dev.krydo.mobile.ui.components.IdentityCoreMode
+import dev.krydo.mobile.ui.components.KrydoPrimaryButton
+import dev.krydo.mobile.ui.components.KrydoSecondaryButton
+import dev.krydo.mobile.ui.components.KrydoWordmark
+import dev.krydo.mobile.ui.components.StatusPill
+import dev.krydo.mobile.ui.theme.CardShape
+import dev.krydo.mobile.ui.theme.KrydoColors
 
 @Composable
 fun ResultScreen(
@@ -33,37 +48,89 @@ fun ResultScreen(
         }
     }
 
+    val valid = state.verifyResult?.valid == true
+
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(KrydoColors.BackgroundPrimary)
             .verticalScroll(rememberScrollState())
             .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Result", style = MaterialTheme.typography.headlineMedium)
-        if (state.loading) CircularProgressIndicator()
-        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            KrydoWordmark(subtitle = null)
+            StatusPill(
+                text = if (valid) "Verified presentation" else "Verification",
+                dotColor = if (valid) KrydoColors.Success else KrydoColors.Cyan,
+                textColor = if (valid) KrydoColors.Success else KrydoColors.Cyan,
+            )
+        }
+
+        IdentityCore(
+            coreSize = 180.dp,
+            mode = if (valid) IdentityCoreMode.Verified else IdentityCoreMode.Idle,
+            label = if (valid) "OK" else "…",
+            icon = Icons.Outlined.Check,
+        )
+
+        if (state.loading) {
+            CircularProgressIndicator(color = KrydoColors.ElectricBlue)
+        }
+        state.error?.let {
+            Text(text = it, color = KrydoColors.Error, fontSize = 13.sp)
+        }
+
         state.verifyResult?.let { result ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (result.valid) "Valid presentation" else "Invalid presentation",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (result.valid) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.error,
-                    )
-                    Text(result.message)
-                    result.checks?.forEach { (k, v) ->
-                        Text("$k: ${if (v) "pass" else "fail"}", style = MaterialTheme.typography.bodySmall)
+            Text(
+                text = if (result.valid) "Verified" else "Not verified",
+                color = KrydoColors.TextPrimary,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = result.message,
+                color = KrydoColors.TextSecondary,
+                fontSize = 14.sp,
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(KrydoColors.CardSurface, CardShape)
+                    .border(1.dp, KrydoColors.BorderBlue, CardShape)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "VALIDATION CHECKS",
+                    color = KrydoColors.TextMuted,
+                    fontSize = 11.sp,
+                    letterSpacing = 1.sp,
+                )
+                result.checks?.forEach { (k, v) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(text = k, color = KrydoColors.TextSecondary, fontSize = 13.sp)
+                        Text(
+                            text = if (v) "pass" else "fail",
+                            color = if (v) KrydoColors.Success else KrydoColors.Error,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 }
             }
         }
-        state.presentationLabel?.let {
-            Text("Proof label: $it", style = MaterialTheme.typography.bodyMedium)
-        }
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Done")
-        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        KrydoPrimaryButton(text = "Done & Return", onClick = onBack, showArrow = true)
+        KrydoSecondaryButton(text = "Share Proof Receipt", onClick = onBack)
     }
 }

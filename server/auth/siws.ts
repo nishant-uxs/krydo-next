@@ -113,7 +113,7 @@ export function registerAuthRoutes(app: Express) {
       const neverAnchored = !previous || !previous.onChainTxHash;
       const needsRoleAnchor = !!(AUDIT_ID && (roleChanged || neverAnchored));
 
-      const token = signAuthToken({ sub: address, role });
+      const token = signAuthToken({ sub: address, role, chain: "stellar" });
       res.json({ token, wallet, needsRoleAnchor });
     } catch (err: any) {
       if (err instanceof z.ZodError) {

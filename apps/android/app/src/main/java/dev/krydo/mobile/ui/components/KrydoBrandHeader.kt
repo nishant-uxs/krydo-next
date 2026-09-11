@@ -35,9 +35,17 @@ fun KrydoBrandHeader(
                 .clip(RoundedCornerShape(20.dp)),
             contentScale = ContentScale.Crop,
         )
-        Text(text = "Krydo", style = MaterialTheme.typography.headlineLarge)
+        Text(
+            text = "Krydo",
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
         if (subtitle != null) {
-            Text(text = subtitle, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -19,7 +19,9 @@ import crypto from "crypto";
  */
 interface NonceEntry {
   nonce: string;
-  address: string; // exact StrKey (case-sensitive)
+  address: string; // exact StrKey (case-sensitive) or lowercase 0x
+  /** Optional CAIP-2 / numeric binding for SIWE (e.g. "eip155:1" or "1") */
+  chainId?: string;
   issuedAt: number;
   expiresAt: number;
 }
@@ -49,26 +51,37 @@ export function __expireNonceForTests(nonce: string): void {
   }
 }
 
-export function issueNonce(address: string): { nonce: string; expiresAt: number } {
+export function issueNonce(
+  address: string,
+  chainId?: string,
+): { nonce: string; expiresAt: number } {
   const addr = address.trim();
   const nonce = crypto.randomBytes(16).toString("hex");
   const now = Date.now();
   const expiresAt = now + NONCE_TTL_MS;
   gc(now);
-  store.set(nonce, { nonce, address: addr, issuedAt: now, expiresAt });
+  store.set(nonce, {
+    nonce,
+    address: addr,
+    chainId: chainId?.trim(),
+    issuedAt: now,
+    expiresAt,
+  });
   return { nonce, expiresAt };
 }
 
 /**
  * Single-use consume: returns true iff the nonce exists, matches the address,
- * hasn't expired, and removes it from the store in the process.
- * Delete-before-check ensures a concurrent double-consume cannot both succeed
- * within a single process.
+ * (and chainId when the entry was chain-bound), hasn't expired, and removes it.
  */
-export function consumeNonce(nonce: string, address: string): boolean {
+export function consumeNonce(nonce: string, address: string, chainId?: string): boolean {
   const entry = store.get(nonce);
   if (!entry) return false;
   store.delete(nonce);
   if (entry.expiresAt < Date.now()) return false;
-  return entry.address === address.trim();
+  if (entry.address !== address.trim()) return false;
+  if (entry.chainId !== undefined) {
+    if (!chainId || entry.chainId !== chainId.trim()) return false;
+  }
+  return true;
 }

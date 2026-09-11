@@ -4,8 +4,10 @@ import { config } from "../config";
 import type { WalletRole } from "@shared/schema";
 
 export interface AuthPayload {
-  sub: string; // Stellar StrKey wallet address (case-sensitive)
+  sub: string; // wallet address (Stellar StrKey or 0x EVM)
   role: WalletRole;
+  /** CAIP-2 chain, e.g. stellar:testnet or eip155:1. Default stellar for legacy tokens. */
+  chain?: string;
   iat?: number;
   exp?: number;
   iss?: string;
@@ -49,8 +51,9 @@ const VERIFY_OPTIONS: jwt.VerifyOptions = {
 };
 
 export function signAuthToken(payload: Omit<AuthPayload, "iat" | "exp" | "iss" | "aud">): string {
-  // Payload is intentionally minimal: wallet address + role only.
-  return jwt.sign({ sub: payload.sub, role: payload.role }, config.JWT_SECRET, SIGN_OPTIONS);
+  const body: Record<string, string> = { sub: payload.sub, role: payload.role };
+  if (payload.chain) body.chain = payload.chain;
+  return jwt.sign(body, config.JWT_SECRET, SIGN_OPTIONS);
 }
 
 export function verifyAuthToken(token: string): AuthPayload | null {
@@ -62,6 +65,7 @@ export function verifyAuthToken(token: string): AuthPayload | null {
     return {
       sub: obj.sub,
       role: obj.role as WalletRole,
+      chain: typeof obj.chain === "string" ? obj.chain : undefined,
       iat: typeof obj.iat === "number" ? obj.iat : undefined,
       exp: typeof obj.exp === "number" ? obj.exp : undefined,
       iss: typeof obj.iss === "string" ? obj.iss : undefined,

@@ -70,8 +70,8 @@ services:
 
       # --- Security ---
       # Comma-separated list of public origins that may call the API.
-      # Set this to your Render URL (and custom domain if any) once deployed,
-      # e.g. "https://krydo.onrender.com,https://krydo.app".
+      # Must include the Vercel frontend origin(s), e.g.:
+      #   https://krydo-next.vercel.app,https://krydo.onrender.com
       - key: CORS_ORIGINS
         sync: false
 

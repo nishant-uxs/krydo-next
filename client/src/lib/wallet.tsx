@@ -1,11 +1,12 @@
 /**
- * Krydo WalletProvider — multi-wallet Stellar (SIWS).
+ * Krydo WalletProvider — Stellar (SIWS) + multi-account shell for EVM (SIWE).
  *
  * Same `useWallet()` shape the app already uses. Internally:
  *   1. Connect opens Stellar Wallets Kit auth modal (Freighter, xBull, Lobstr, …).
  *   2. Sign-in is SIWS: server nonce → canonical message → kit.signMessage (SEP-53
  *      for Freighter-class wallets) → JWT.
  *   3. Contract calls go through the same kit (`lib/contracts.ts`).
+ *   4. EVM: `connectEvm` opens Reown AppKit; SIWE completes in WalletButton / evm-auth.
  */
 
 import {
@@ -18,6 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { apiRequest, queryClient } from "./queryClient";
+import { apiUrl } from "./api-base";
 import { setAuthToken, getAuthToken } from "./auth-token";
 import { NETWORK_LABEL, STELLAR_NETWORK } from "./stellar";
 import {
@@ -26,17 +28,22 @@ import {
   expectedPassphrase,
   KitEventType,
 } from "./wallet-kit";
+import { openEvmConnect, reownConfigured } from "./reown";
 import { useToast } from "@/hooks/use-toast";
 import { TxConfirmDialog, type TxConfirmInfo } from "@/components/tx-confirm-dialog";
 import { anchorRoleViaWallet } from "./contracts";
+import type { WalletAccount } from "@shared/wallet";
+import { stellarCaip2 } from "@shared/wallet";
 
 const STORAGE_KEY = "krydo_wallet";
+const ACCOUNTS_KEY = "krydo_wallet_accounts";
 
 interface StoredWallet {
   address: string;
   role: string;
   label: string | null;
   onChainTxHash: string | null;
+  chain?: string;
 }
 
 interface WalletContextType {
@@ -50,8 +57,33 @@ interface WalletContextType {
   hasWallet: boolean;
   /** Active kit module id, e.g. "freighter". */
   walletId: string | null;
+  /** Linked accounts shell (Stellar + EVM). No silent identity merge. */
+  accounts: WalletAccount[];
+  /** Stellar SIWS connect (alias of connect). */
   connect: () => Promise<void>;
-  disconnect: () => void;
+  connectStellar: () => Promise<void>;
+  /** Opens Reown AppKit; SIWE sign-in is completed via WalletButton. */
+  connectEvm: () => void;
+  /** Disconnect active session, or remove one linked account when provided. */
+  disconnect: (account?: WalletAccount) => void;
+}
+
+function loadAccounts(): WalletAccount[] {
+  try {
+    const raw = localStorage.getItem(ACCOUNTS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as WalletAccount[];
+  } catch {
+    return [];
+  }
+}
+
+function saveAccounts(list: WalletAccount[]) {
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list));
+}
+
+function stellarChainId(): string {
+  return stellarCaip2(STELLAR_NETWORK === "mainnet" ? "mainnet" : "testnet");
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -63,7 +95,10 @@ const WalletContext = createContext<WalletContextType>({
   isConnecting: false,
   hasWallet: true,
   walletId: null,
+  accounts: [],
   connect: async () => {},
+  connectStellar: async () => {},
+  connectEvm: () => {},
   disconnect: () => {},
 });
 
@@ -99,6 +134,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasWallet, setHasWallet] = useState(true);
   const [walletId, setWalletId] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<WalletAccount[]>([]);
   const [roleConfirmOpen, setRoleConfirmOpen] = useState(false);
   const [roleConfirmInfo, setRoleConfirmInfo] = useState<TxConfirmInfo | null>(null);
   const [roleAnchorPending, setRoleAnchorPending] = useState(false);
@@ -133,6 +169,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Hydrate from localStorage when a JWT is still present.
   useEffect(() => {
     try {
+      setAccounts(loadAccounts());
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) return;
       const token = getAuthToken();
@@ -154,6 +191,21 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const upsertAccount = useCallback((account: WalletAccount) => {
+    setAccounts((prev) => {
+      const next = prev.filter(
+        (a) =>
+          !(
+            a.chainId === account.chainId &&
+            a.address.toLowerCase() === account.address.toLowerCase()
+          ),
+      );
+      next.push(account);
+      saveAccounts(next);
+      return next;
+    });
+  }, []);
+
   const clearLocalSession = useCallback(() => {
     setAddress(null);
     setRole(null);
@@ -161,8 +213,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setOnChainTxHash(null);
     addressRef.current = null;
     setWalletId(null);
+    setAccounts([]);
     setAuthToken(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(ACCOUNTS_KEY);
     rememberWalletId(null);
     queryClient.invalidateQueries({ queryKey: ["/api"] });
   }, []);
@@ -208,7 +262,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         }
 
         const nonceRes = await fetch(
-          `/api/auth/nonce?address=${encodeURIComponent(walletAddr)}`,
+          apiUrl(`/api/auth/nonce?address=${encodeURIComponent(walletAddr)}`),
         );
         if (!nonceRes.ok) throw new Error("Failed to fetch auth nonce");
         const { nonce } = (await nonceRes.json()) as { nonce: string };
@@ -252,7 +306,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         setLabel(wallet.label);
         setOnChainTxHash(wallet.onChainTxHash || null);
         addressRef.current = wallet.address;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...wallet, chain: "stellar" }));
+        upsertAccount({
+          chainType: "STELLAR",
+          chainId: stellarChainId(),
+          address: wallet.address,
+          walletProvider: localStorage.getItem("krydo_wallet_id") || undefined,
+          label: wallet.label,
+          capabilities: ["siws", "soroban"],
+        });
         queryClient.invalidateQueries({ queryKey: ["/api"] });
 
         if (needsRoleAnchor) {
@@ -296,7 +358,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         signInInFlightFor.current = null;
       }
     },
-    [toast],
+    [toast, upsertAccount],
   );
 
   const connect = useCallback(async () => {
@@ -328,15 +390,53 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [runSiwsFlow, toast]);
 
-  const disconnect = useCallback(() => {
-    try {
-      ensureWalletKit().disconnect();
-    } catch {
-      /* ignore */
+  const connectEvm = useCallback(() => {
+    if (!reownConfigured) {
+      toast({
+        title: "EVM wallets unavailable",
+        description: "Set VITE_REOWN_PROJECT_ID (https://dashboard.reown.com)",
+        variant: "destructive",
+      });
+      return;
     }
-    clearLocalSession();
-    queryClient.clear();
-  }, [clearLocalSession]);
+    if (!openEvmConnect()) {
+      toast({
+        title: "Could not open AppKit",
+        description: "Check VITE_REOWN_PROJECT_ID and reload.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  const disconnect = useCallback(
+    (account?: WalletAccount) => {
+      if (account) {
+        setAccounts((prev) => {
+          const next = prev.filter(
+            (a) =>
+              !(
+                a.chainId === account.chainId &&
+                a.address.toLowerCase() === account.address.toLowerCase()
+              ),
+          );
+          saveAccounts(next);
+          return next;
+        });
+        const active =
+          address &&
+          address.toLowerCase() === account.address.toLowerCase();
+        if (!active) return;
+      }
+      try {
+        ensureWalletKit().disconnect();
+      } catch {
+        /* ignore */
+      }
+      clearLocalSession();
+      queryClient.clear();
+    },
+    [address, clearLocalSession],
+  );
 
   const confirmRoleAnchor = useCallback(async () => {
     const pending = pendingRoleAnchor.current;
@@ -399,7 +499,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         isConnecting,
         hasWallet,
         walletId,
+        accounts,
         connect,
+        connectStellar: connect,
+        connectEvm,
         disconnect,
       }}
     >

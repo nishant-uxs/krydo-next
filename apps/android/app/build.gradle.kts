@@ -13,9 +13,12 @@ android {
         applicationId = "dev.krydo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0-branded"
+        versionCode = 7
+        versionName = "0.7.0-multichain"
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://krydo.onrender.com\"")
+        // Set via local.properties reown.projectId=... or leave empty to disable EVM AppKit.
+        buildConfigField("String", "REOWN_PROJECT_ID", "\"${project.findProperty("reown.projectId") ?: ""}\"")
+        manifestPlaceholders["reownRedirect"] = "krydo://wc"
     }
 
     buildFeatures {
@@ -35,6 +38,11 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE*"
+            excludes += "META-INF/NOTICE*"
+            excludes += "META-INF/*.kotlin_module"
         }
     }
 }
@@ -46,6 +54,7 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
@@ -54,7 +63,14 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.compose.animation:animation")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // Camera (Scan preview)
+    implementation("androidx.camera:camera-camera2:1.4.0")
+    implementation("androidx.camera:camera-lifecycle:1.4.0")
+    implementation("androidx.camera:camera-view:1.4.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
@@ -62,6 +78,11 @@ dependencies {
     implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // Reown AppKit (EVM / WalletConnect)
+    implementation(platform("com.reown:android-bom:1.4.11"))
+    implementation("com.reown:android-core")
+    implementation("com.reown:appkit")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

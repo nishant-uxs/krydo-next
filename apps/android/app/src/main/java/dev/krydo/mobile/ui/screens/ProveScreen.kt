@@ -1,26 +1,36 @@
 package dev.krydo.mobile.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.krydo.mobile.ui.AppViewModel
+import dev.krydo.mobile.ui.components.IdentityCore
+import dev.krydo.mobile.ui.components.IdentityCoreMode
+import dev.krydo.mobile.ui.components.KrydoPrimaryButton
+import dev.krydo.mobile.ui.components.KrydoSecondaryButton
+import dev.krydo.mobile.ui.components.StatusPill
+import dev.krydo.mobile.ui.theme.CardShape
+import dev.krydo.mobile.ui.theme.KrydoColors
 
 @Composable
 fun ProveScreen(
@@ -28,19 +38,38 @@ fun ProveScreen(
     onShowResult: () -> Unit,
 ) {
     val state by viewModel.prove.collectAsStateWithLifecycle()
-    val credentials = viewModel.credentials
+    val credentials by viewModel.credentials.collectAsStateWithLifecycle()
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = KrydoColors.ElectricBlue,
+        unfocusedBorderColor = KrydoColors.BorderSubtle,
+        focusedTextColor = KrydoColors.TextPrimary,
+        unfocusedTextColor = KrydoColors.TextPrimary,
+        cursorColor = KrydoColors.ElectricBlue,
+        focusedLabelColor = KrydoColors.BrightBlue,
+        unfocusedLabelColor = KrydoColors.TextMuted,
+        focusedContainerColor = KrydoColors.CardSurface,
+        unfocusedContainerColor = KrydoColors.CardSurface,
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(KrydoColors.BackgroundPrimary)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 20.dp)
+            .padding(top = 16.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Prove", style = MaterialTheme.typography.headlineMedium)
         Text(
-            "Open a presentation request from a verifier, then select a credential and create a presentation.",
-            style = MaterialTheme.typography.bodyMedium,
+            text = "Prove",
+            color = KrydoColors.TextPrimary,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = "Paste a presentation request id or krydo://present?request=… deep link.",
+            color = KrydoColors.TextMuted,
+            fontSize = 14.sp,
         )
 
         if (state.request == null && state.presentation == null) {
@@ -50,94 +79,133 @@ fun ProveScreen(
                 label = { Text("Request ID or krydo:// URI") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
+                shape = CardShape,
+                colors = fieldColors,
             )
-            Button(
+            KrydoPrimaryButton(
+                text = "Continue",
                 onClick = { viewModel.loadRequestFromInput() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !state.loading,
-            ) { Text("Continue") }
-            OutlinedButton(
-                onClick = viewModel::useDemoRequest,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Try demo request") }
-            Text(
-                "Current proofs use DEMO / MOCK PROOF — not cryptographically valid.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary,
+                enabled = !state.loading && state.input.isNotBlank(),
+                showArrow = true,
             )
         }
 
         if (state.loading) {
-            CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+            CircularProgressIndicator(color = KrydoColors.ElectricBlue)
         }
         state.error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error)
+            Text(text = it, color = KrydoColors.Error, fontSize = 13.sp)
         }
 
         state.request?.let { req ->
             if (state.presentation == null) {
-                Text("Verification request", style = MaterialTheme.typography.titleMedium)
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Id: ${req.id}")
-                        Text("Reason: ${req.reason ?: "—"}")
-                        Text("Claim: ${req.requestedCredentials.firstOrNull()?.claimType ?: req.policy.claimType}")
-                        Text("Expires: ${req.expiresAt}")
+                StatusPill(text = "Verification request", dotColor = KrydoColors.Cyan)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(KrydoColors.CardSurface, CardShape)
+                        .border(1.dp, KrydoColors.BorderBlue, CardShape)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text("Id: ${req.id}", color = KrydoColors.TextSecondary, fontSize = 13.sp)
+                    Text("Reason: ${req.reason ?: "—"}", color = KrydoColors.TextSecondary, fontSize = 13.sp)
+                    Text(
+                        "Claim: ${req.requestedCredentials.firstOrNull()?.claimType ?: req.policy.claimType}",
+                        color = KrydoColors.TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text("Expires: ${req.expiresAt}", color = KrydoColors.TextMuted, fontSize = 12.sp)
+                }
+
+                Text(
+                    text = "Select credential",
+                    color = KrydoColors.TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                val want = req.requestedCredentials.firstOrNull()?.claimType ?: req.policy.claimType
+                val matches = credentials.filter { it.claimType == want }.ifEmpty { credentials }
+                if (matches.isEmpty()) {
+                    Text(
+                        text = "No matching credentials for $want. Refresh after signing in.",
+                        color = KrydoColors.Error,
+                        fontSize = 13.sp,
+                    )
+                }
+                matches.forEach { cred ->
+                    val selected = state.selectedCredentialId == cred.id
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (selected) KrydoColors.ElectricBlue.copy(alpha = 0.12f) else KrydoColors.CardSurface,
+                                CardShape,
+                            )
+                            .border(
+                                1.dp,
+                                if (selected) KrydoColors.ElectricBlue else KrydoColors.BorderSubtle,
+                                CardShape,
+                            )
+                            .clickable { viewModel.selectCredential(cred.id) }
+                            .padding(14.dp),
+                    ) {
+                        Text(
+                            text = if (selected) "✓ ${cred.title}" else cred.title,
+                            color = KrydoColors.TextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text("${cred.claimType} · ${cred.status}", color = KrydoColors.TextMuted, fontSize = 12.sp)
                     }
                 }
-                Text("Select credential", style = MaterialTheme.typography.titleSmall)
-                credentials
-                    .filter {
-                        val want = req.requestedCredentials.firstOrNull()?.claimType ?: req.policy.claimType
-                        it.claimType == want
-                    }
-                    .ifEmpty { credentials }
-                    .forEach { cred ->
-                        val selected = state.selectedCredentialId == cred.id
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.selectCredential(cred.id) },
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    if (selected) "✓ ${cred.title}" else cred.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                                Text("${cred.issuerName} · ${cred.status}")
-                            }
-                        }
-                    }
-                Button(
+                KrydoPrimaryButton(
+                    text = "Create presentation",
                     onClick = viewModel::createPresentation,
-                    modifier = Modifier.fillMaxWidth(),
                     enabled = !state.loading && state.selectedCredentialId != null,
-                ) { Text("Create DEMO presentation") }
-                OutlinedButton(onClick = viewModel::clearProveFlow, modifier = Modifier.fillMaxWidth()) {
-                    Text("Back")
-                }
+                )
+                KrydoSecondaryButton(text = "Back", onClick = viewModel::clearProveFlow)
             }
         }
 
         state.presentation?.let {
-            Text("Presentation ready", style = MaterialTheme.typography.titleMedium)
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(state.presentationLabel ?: "DEMO / MOCK PROOF", style = MaterialTheme.typography.titleSmall)
-                    Text("This presentation was produced with a mock prover and is not cryptographically valid.")
-                }
+            IdentityCore(coreSize = 160.dp, mode = IdentityCoreMode.Idle, label = "READY")
+            Text(
+                text = "Ready to Present",
+                color = KrydoColors.TextPrimary,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(KrydoColors.CardSurface, CardShape)
+                    .border(1.dp, KrydoColors.BorderBlue, CardShape)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = "Verifiable presentation created on the Krydo server.",
+                    color = KrydoColors.TextSecondary,
+                    fontSize = 14.sp,
+                )
+                Text(
+                    text = "Next: submit it to the verifier.",
+                    color = KrydoColors.TextMuted,
+                    fontSize = 13.sp,
+                )
             }
-            Button(
+            KrydoPrimaryButton(
+                text = "Present / Verify",
                 onClick = {
                     viewModel.verifyPresentation()
                     onShowResult()
                 },
-                modifier = Modifier.fillMaxWidth(),
                 enabled = !state.loading,
-            ) { Text("Present / Verify") }
-            OutlinedButton(onClick = viewModel::clearProveFlow, modifier = Modifier.fillMaxWidth()) {
-                Text("Back")
-            }
+                showArrow = true,
+            )
+            KrydoSecondaryButton(text = "Back", onClick = viewModel::clearProveFlow)
         }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }

@@ -33,6 +33,8 @@ Three Soroban contracts, one purpose each: `KrydoAuthority` owns the issuer whit
 
 **Live demo:** [krydo-stellar.vercel.app](https://krydo-stellar.vercel.app) (Stellar Testnet).
 
+**krydo-next split deploy:** API backend → [krydo.onrender.com](https://krydo.onrender.com) · website SPA → Vercel (`vercel.json` rewrites `/api` → Render) · Android → same Render `DEFAULT_API_BASE_URL`.
+
 ---
 
 ## The problem
@@ -140,6 +142,8 @@ flowchart LR
 
 | Document                                      | Audience                   | What's in it                                                                  |
 |-----------------------------------------------|----------------------------|-------------------------------------------------------------------------------|
+| **[`docs/WALLET.md`](./docs/WALLET.md)**   | engineers                  | Multi-chain wallets: Stellar SIWS + EVM Reown/SIWE, env vars, Android login gate, limitations |
+| **[`docs/MULTI_CHAIN_WALLET_REPORT.md`](./docs/MULTI_CHAIN_WALLET_REPORT.md)** | engineers | Implementation status, SDKs, verification commands |
 | **[`MAINNET.md`](./MAINNET.md)**              | operators                  | Full Stellar mainnet migration checklist (deploy, Vercel, bootstrap issuers)   |
 | **[`DOCUMENTATION.md`](./DOCUMENTATION.md)**  | engineers, auditors        | 18-section architecture spec with 20+ Mermaid diagrams, full data flows, threat model, protocol internals |
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md)        | contributors               | Commit conventions, test bar, PR checklist                                    |

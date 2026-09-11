@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { WalletProvider, useWallet } from "@/lib/wallet";
+import { EvmProviders } from "@/lib/evm-providers";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { WalletButton } from "@/components/wallet-button";
@@ -120,10 +121,12 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WalletProvider>
-          <Toaster />
-          <Router />
-        </WalletProvider>
+        <EvmProviders>
+          <WalletProvider>
+            <Toaster />
+            <Router />
+          </WalletProvider>
+        </EvmProviders>
       </TooltipProvider>
     </QueryClientProvider>
   );
