@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "rm -f package-lock.json && NPM_CONFIG_PRODUCTION=false npm install --include=optional --include=dev && npm run build",
+  "buildCommand": "rm -f package-lock.json && NPM_CONFIG_PRODUCTION=false npm install --include=optional --include=dev --legacy-peer-deps && npm run build",
   "outputDirectory": "dist/public",
-  "installCommand": "NPM_CONFIG_PRODUCTION=false npm install --include=optional --include=dev",
+  "installCommand": "NPM_CONFIG_PRODUCTION=false npm install --include=optional --include=dev --legacy-peer-deps",
   "framework": null,
   "rewrites": [
     {
