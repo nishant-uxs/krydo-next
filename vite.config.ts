@@ -14,6 +14,15 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       buffer: "buffer",
+      // @reown/appkit-adapter-wagmi may pull @wagmi/connectors@8 which imports
+      // `@wagmi/core/tempo` (wagmi v3). Stub so Vite can build with wagmi v2.
+      "@wagmi/core/tempo": path.resolve(
+        import.meta.dirname,
+        "client",
+        "src",
+        "lib",
+        "wagmi-tempo-stub.ts",
+      ),
     },
   },
   optimizeDeps: {
