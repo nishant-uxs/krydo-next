@@ -15,8 +15,8 @@ describe("presentation request store", () => {
     __resetPresentationRequestStoreForTests();
   });
 
-  it("issues opaque id + random challenge", () => {
-    const a = issuePresentationRequest({
+  it("issues opaque id + random challenge", async () => {
+    const a = await issuePresentationRequest({
       verifier: VERIFIER,
       audience: "https://a.example",
       reason: null,
@@ -24,7 +24,7 @@ describe("presentation request store", () => {
       policy: { kind: "credential_status", claimType: "credit_score" },
       ttlSeconds: 600,
     });
-    const b = issuePresentationRequest({
+    const b = await issuePresentationRequest({
       verifier: VERIFIER,
       audience: "https://a.example",
       reason: null,
@@ -39,11 +39,11 @@ describe("presentation request store", () => {
     expect(a.challenge).toMatch(/^[a-f0-9]{64}$/);
     expect(a.challenge).not.toBe(b.challenge);
     expect(a.deepLink).toContain(a.id);
-    expect(getPresentationRequest(a.id)?.verifier).toBe(VERIFIER);
+    expect((await getPresentationRequest(a.id))?.verifier).toBe(VERIFIER);
   });
 
-  it("rejects expired challenges", () => {
-    const req = issuePresentationRequest({
+  it("rejects expired challenges", async () => {
+    const req = await issuePresentationRequest({
       verifier: VERIFIER,
       audience: VERIFIER,
       reason: null,
@@ -51,13 +51,13 @@ describe("presentation request store", () => {
       policy: { kind: "credential_status", claimType: "income_verification" },
       ttlSeconds: 600,
     });
-    __expirePresentationRequestForTests(req.id);
-    expect(isChallengeOpen(getPresentationRequest(req.id)!, req.challenge).ok).toBe(false);
-    expect(consumePresentationChallenge(req.id, req.challenge).ok).toBe(false);
+    await __expirePresentationRequestForTests(req.id);
+    expect(isChallengeOpen((await getPresentationRequest(req.id))!, req.challenge).ok).toBe(false);
+    expect((await consumePresentationChallenge(req.id, req.challenge)).ok).toBe(false);
   });
 
-  it("consumes challenge once (replay protection)", () => {
-    const req = issuePresentationRequest({
+  it("consumes challenge once (replay protection)", async () => {
+    const req = await issuePresentationRequest({
       verifier: VERIFIER,
       audience: "https://lender.example",
       reason: null,
@@ -65,13 +65,13 @@ describe("presentation request store", () => {
       policy: { kind: "credential_status", claimType: "credit_score" },
       ttlSeconds: 600,
     });
-    expect(consumePresentationChallenge(req.id, req.challenge).ok).toBe(true);
-    expect(consumePresentationChallenge(req.id, req.challenge).ok).toBe(false);
-    expect(consumePresentationChallenge(req.id, req.challenge).ok).toBe(false);
+    expect((await consumePresentationChallenge(req.id, req.challenge)).ok).toBe(true);
+    expect((await consumePresentationChallenge(req.id, req.challenge)).ok).toBe(false);
+    expect((await consumePresentationChallenge(req.id, req.challenge)).ok).toBe(false);
   });
 
-  it("rejects wrong challenge", () => {
-    const req = issuePresentationRequest({
+  it("rejects wrong challenge", async () => {
+    const req = await issuePresentationRequest({
       verifier: VERIFIER,
       audience: "https://lender.example",
       reason: null,
@@ -79,8 +79,8 @@ describe("presentation request store", () => {
       policy: { kind: "credential_status", claimType: "credit_score" },
       ttlSeconds: 600,
     });
-    expect(consumePresentationChallenge(req.id, "b".repeat(64)).ok).toBe(false);
+    expect((await consumePresentationChallenge(req.id, "b".repeat(64))).ok).toBe(false);
     // Original still usable after wrong attempt.
-    expect(consumePresentationChallenge(req.id, req.challenge).ok).toBe(true);
+    expect((await consumePresentationChallenge(req.id, req.challenge)).ok).toBe(true);
   });
 });

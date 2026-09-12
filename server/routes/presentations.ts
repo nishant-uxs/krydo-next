@@ -56,7 +56,7 @@ export function registerPresentationRoutes(app: Express) {
           });
         }
 
-        const record = issuePresentationRequest({
+        const record = await issuePresentationRequest({
           verifier,
           audience,
           reason: body.reason ?? null,
@@ -104,7 +104,7 @@ export function registerPresentationRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid request id" });
       }
 
-      const record = getPresentationRequest(requestId);
+      const record = await getPresentationRequest(requestId);
       if (!record) {
         return res.status(404).json({ message: "Presentation request not found" });
       }
@@ -148,7 +148,7 @@ export function registerPresentationRoutes(app: Express) {
         const data = schema.parse(req.body ?? {});
         const holder = req.auth!.sub;
 
-        const request = getPresentationRequest(data.requestId);
+        const request = await getPresentationRequest(data.requestId);
         if (!request) {
           return res.status(404).json({ message: "Presentation request not found" });
         }

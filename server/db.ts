@@ -68,6 +68,10 @@ export const collections = {
   get credentialRequests() { return col("credentialRequests"); },
   get transactions() { return col("transactions"); },
   get zkProofs() { return col("zkProofs"); },
+  /** SIWS/SIWE single-use nonces (durable across instances). */
+  get authNonces() { return col("authNonces"); },
+  /** Presentation requests + challenges (durable across instances). */
+  get presentationRequests() { return col("presentationRequests"); },
 };
 
 export const db = firestore;

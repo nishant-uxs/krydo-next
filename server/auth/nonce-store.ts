@@ -1,72 +1,78 @@
 import crypto from "crypto";
+import { collections } from "../db";
 
 /**
- * Short-lived nonce storage for Sign-in-with-Stellar challenges.
+ * Short-lived nonce storage for SIWS / SIWE challenges.
  *
- * Guarantees (single process):
- *   - cryptographically random nonces (16 bytes)
- *   - TTL expiry (5 minutes)
- *   - single-use consume (delete-before-validate)
- *   - address binding (nonce cannot authenticate a different wallet)
- *
- * Remaining limitation (P0 documented):
- *   In-memory Map is NOT safe across multiple serverless instances or
- *   horizontal replicas — a nonce issued on instance A cannot be consumed
- *   on instance B, and a replay could succeed if it lands on a different
- *   isolate that never saw the first consume. For true multi-instance
- *   safety, swap this store for Firestore/Redis with the same API.
- *   Do NOT introduce an external dependency solely for this P0 task.
+ * Production: Firestore (`authNonces`) so issue/consume works across
+ * Render instances and restarts.
+ * Tests (`NODE_ENV=test`): in-memory Map (no Firebase required).
  */
 interface NonceEntry {
   nonce: string;
-  address: string; // exact StrKey (case-sensitive) or lowercase 0x
-  /** Optional CAIP-2 / numeric binding for SIWE (e.g. "eip155:1" or "1") */
+  address: string;
   chainId?: string;
   issuedAt: number;
   expiresAt: number;
 }
 
-const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const MAX_NONCES = 10_000;
+const NONCE_TTL_MS = 5 * 60 * 1000;
+const MAX_MEMORY_NONCES = 10_000;
+const memoryStore = new Map<string, NonceEntry>();
 
-const store = new Map<string, NonceEntry>();
+function useMemory(): boolean {
+  return process.env.NODE_ENV === "test" || process.env.KRYDO_MEMORY_AUTH_STORE === "1";
+}
 
-function gc(now: number) {
-  if (store.size < MAX_NONCES) return;
-  store.forEach((v, k) => {
-    if (v.expiresAt <= now) store.delete(k);
+function gcMemory(now: number) {
+  if (memoryStore.size < MAX_MEMORY_NONCES) return;
+  memoryStore.forEach((v, k) => {
+    if (v.expiresAt <= now) memoryStore.delete(k);
   });
 }
 
 /** Test helper — clears the in-memory store. */
 export function __resetNonceStoreForTests(): void {
-  store.clear();
+  memoryStore.clear();
 }
 
 /** Test helper — force-expire an existing nonce without removing it. */
-export function __expireNonceForTests(nonce: string): void {
-  const entry = store.get(nonce);
-  if (entry) {
-    store.set(nonce, { ...entry, expiresAt: Date.now() - 1 });
+export async function __expireNonceForTests(nonce: string): Promise<void> {
+  if (useMemory()) {
+    const entry = memoryStore.get(nonce);
+    if (entry) memoryStore.set(nonce, { ...entry, expiresAt: Date.now() - 1 });
+    return;
+  }
+  const ref = collections.authNonces.doc(nonce);
+  const snap = await ref.get();
+  if (snap.exists) {
+    await ref.update({ expiresAt: Date.now() - 1 });
   }
 }
 
-export function issueNonce(
+export async function issueNonce(
   address: string,
   chainId?: string,
-): { nonce: string; expiresAt: number } {
+): Promise<{ nonce: string; expiresAt: number }> {
   const addr = address.trim();
   const nonce = crypto.randomBytes(16).toString("hex");
   const now = Date.now();
   const expiresAt = now + NONCE_TTL_MS;
-  gc(now);
-  store.set(nonce, {
+  const entry: NonceEntry = {
     nonce,
     address: addr,
     chainId: chainId?.trim(),
     issuedAt: now,
     expiresAt,
-  });
+  };
+
+  if (useMemory()) {
+    gcMemory(now);
+    memoryStore.set(nonce, entry);
+    return { nonce, expiresAt };
+  }
+
+  await collections.authNonces.doc(nonce).set(entry);
   return { nonce, expiresAt };
 }
 
@@ -74,14 +80,38 @@ export function issueNonce(
  * Single-use consume: returns true iff the nonce exists, matches the address,
  * (and chainId when the entry was chain-bound), hasn't expired, and removes it.
  */
-export function consumeNonce(nonce: string, address: string, chainId?: string): boolean {
-  const entry = store.get(nonce);
-  if (!entry) return false;
-  store.delete(nonce);
-  if (entry.expiresAt < Date.now()) return false;
-  if (entry.address !== address.trim()) return false;
-  if (entry.chainId !== undefined) {
-    if (!chainId || entry.chainId !== chainId.trim()) return false;
+export async function consumeNonce(
+  nonce: string,
+  address: string,
+  chainId?: string,
+): Promise<boolean> {
+  const addr = address.trim();
+  const chain = chainId?.trim();
+
+  if (useMemory()) {
+    const entry = memoryStore.get(nonce);
+    if (!entry) return false;
+    memoryStore.delete(nonce);
+    if (entry.expiresAt < Date.now()) return false;
+    if (entry.address !== addr) return false;
+    if (entry.chainId !== undefined) {
+      if (!chain || entry.chainId !== chain) return false;
+    }
+    return true;
   }
-  return true;
+
+  const db = collections.authNonces.firestore;
+  const ref = collections.authNonces.doc(nonce);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const entry = snap.data() as NonceEntry;
+    tx.delete(ref);
+    if (!entry || entry.expiresAt < Date.now()) return false;
+    if (entry.address !== addr) return false;
+    if (entry.chainId !== undefined) {
+      if (!chain || entry.chainId !== chain) return false;
+    }
+    return true;
+  });
 }

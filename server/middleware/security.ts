@@ -61,9 +61,13 @@ export function installSecurityMiddleware(app: Express) {
 
   // -- CORS
   const corsOrigins = config.corsOrigins;
+  if (config.isProd && (!corsOrigins || corsOrigins.length === 0)) {
+    throw new Error("CORS_ORIGINS must be configured in production");
+  }
   app.use(
     cors({
-      origin: corsOrigins ?? true, // true = reflect request origin in dev
+      // Dev: reflect request origin when unset. Prod: strict allow-list only.
+      origin: corsOrigins ?? (config.isProd ? false : true),
       credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],

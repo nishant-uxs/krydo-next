@@ -49,7 +49,7 @@ export function registerSiweAuthRoutes(app: Express) {
       }
       const normalized = normalizeEvmAddress(address);
       const caip2 = evmCaip2(chainId);
-      const { nonce, expiresAt } = issueNonce(normalized, caip2);
+      const { nonce, expiresAt } = await issueNonce(normalized, caip2);
       const { domain, uri } = requestOrigin(req);
       res.json({
         nonce,
@@ -106,7 +106,7 @@ export function registerSiweAuthRoutes(app: Express) {
       const address = normalizeEvmAddress(siwe.address);
       const caip2 = evmCaip2(siwe.chainId);
 
-      if (!consumeNonce(siwe.nonce, address, caip2)) {
+      if (!(await consumeNonce(siwe.nonce, address, caip2))) {
         return res.status(401).json({ message: "Invalid or expired nonce" });
       }
 

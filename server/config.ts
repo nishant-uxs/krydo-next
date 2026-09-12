@@ -37,6 +37,15 @@ const EnvSchema = z.object({
   // --- Rate limiting ---
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+
+  /**
+   * Demo-only: allow credential-request respond with offChainOk when contracts
+   * are live. Must be explicitly "true" / "1". Default off in all environments.
+   */
+  ALLOW_OFFCHAIN_ISSUE: z
+    .string()
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
 });
 
 function loadConfig() {
@@ -65,15 +74,28 @@ function loadConfig() {
 
   const jwtSecret = env.JWT_SECRET ?? env.SESSION_SECRET;
 
+  const corsOrigins =
+    env.CORS_ORIGINS && env.CORS_ORIGINS.trim().length > 0
+      ? env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
+      : null;
+
+  // Production must pin an allow-list — reflecting any origin is unsafe.
+  if (env.NODE_ENV === "production" && (!corsOrigins || corsOrigins.length === 0)) {
+    const msg =
+      "CORS_ORIGINS must be set to a comma-separated allow-list in production (e.g. https://krydo-next.vercel.app)";
+    // eslint-disable-next-line no-console
+    console.error(msg);
+    if (process.env.VERCEL) throw new Error(msg);
+    process.exit(1);
+  }
+
   return {
     ...env,
     JWT_SECRET: jwtSecret,
     isProd: env.NODE_ENV === "production",
     isDev: env.NODE_ENV === "development",
-    corsOrigins:
-      env.CORS_ORIGINS && env.CORS_ORIGINS.trim().length > 0
-        ? env.CORS_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
-        : null,
+    corsOrigins,
+    allowOffChainIssue: !!env.ALLOW_OFFCHAIN_ISSUE,
   };
 }
 

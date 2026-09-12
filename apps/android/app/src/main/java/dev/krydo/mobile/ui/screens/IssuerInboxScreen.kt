@@ -66,7 +66,7 @@ fun IssuerInboxScreen(viewModel: AppViewModel) {
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Approve pending holder requests and issue claim values (off-chain demo path on mobile).",
+                text = "Approve pending holder requests and issue claim values. On-chain wallet signing is required unless the API enables demo off-chain issue.",
                 color = KrydoColors.TextMuted,
                 fontSize = 13.sp,
             )

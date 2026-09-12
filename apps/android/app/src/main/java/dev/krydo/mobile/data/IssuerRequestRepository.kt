@@ -1,5 +1,6 @@
 package dev.krydo.mobile.data
 
+import dev.krydo.mobile.BuildConfig
 import dev.krydo.mobile.network.ApiClientFactory
 import dev.krydo.mobile.network.ApiException
 import dev.krydo.mobile.network.CreateCredentialRequestBody
@@ -165,7 +166,7 @@ class IssuerRequestRepository(
                     responseMessage = responseMessage?.takeIf { it.isNotBlank() } ?: "Credential issued",
                     claimSummary = claimSummary.trim(),
                     claimValue = claimValue.trim(),
-                    offChainOk = true,
+                    offChainOk = BuildConfig.ALLOW_OFFCHAIN_ISSUE,
                 ),
             )
             refreshIssuerInbox()

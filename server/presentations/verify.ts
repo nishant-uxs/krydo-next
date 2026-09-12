@@ -110,7 +110,7 @@ export async function verifyPresentation(
   const vp: VerifiablePresentation = parsed.data;
   const checks = emptyChecks({ structure: true });
 
-  const request = getPresentationRequest(vp.requestId);
+  const request = await getPresentationRequest(vp.requestId);
   if (!request) {
     return fail({
       message: "Presentation request not found or expired",
@@ -271,7 +271,7 @@ export async function verifyPresentation(
   checks.proof = true;
 
   // Consume challenge — replay protection
-  const consumed = consumePresentationChallenge(request.id, vp.challenge, now);
+  const consumed = await consumePresentationChallenge(request.id, vp.challenge, now);
   if (!consumed.ok) {
     return fail({
       message: consumed.reason,

@@ -13,11 +13,15 @@ android {
         applicationId = "dev.krydo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.18.0-enhancements"
+        versionCode = 19
+        versionName = "0.19.0-p0-security"
 
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://krydo.onrender.com\"")
         buildConfigField("String", "WEB_APP_URL", "\"https://krydo-next.vercel.app\"")
+        // Demo-only off-chain issue. Must also set ALLOW_OFFCHAIN_ISSUE=true on the API.
+        val allowOffChain = (project.findProperty("allowOffChainIssue") as String?)?.trim()
+            .equals("true", ignoreCase = true)
+        buildConfigField("boolean", "ALLOW_OFFCHAIN_ISSUE", if (allowOffChain) "true" else "false")
         // Prefer local.properties reown.projectId=... ; fallback keeps Freighter WC usable for demos.
         val reownId = (project.findProperty("reown.projectId") as String?)?.trim().orEmpty()
             .ifBlank { "3a8170812b534d0ff9d794f19a901d64" }

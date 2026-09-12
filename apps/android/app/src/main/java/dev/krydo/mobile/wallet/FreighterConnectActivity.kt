@@ -108,18 +108,25 @@ class FreighterConnectActivity : FragmentActivity() {
                 // Always use the live Render API for Freighter login (avoid stale/wrong Datastore URL → HTML).
                 app.container.settingsRepository.setApiBaseUrl(BuildConfig.DEFAULT_API_BASE_URL)
                 val session = FreighterWcClient.connectFreighter(this@FreighterConnectActivity)
-                statusState.value = "Approved ${session.address.take(6)}… — saving session"
-
+                statusState.value = "Approved ${session.address.take(6)}… — sign in to prove wallet"
                 val result = withContext(Dispatchers.IO) {
                     SiwsClient(app.container.settingsRepository).authenticateFromWalletConnect(
-                        address = session.address,
-                        chainId = session.chainId,
-                        topic = session.topic,
+                        session = session,
+                        signMessage = { message ->
+                            withContext(Dispatchers.Main) {
+                                statusState.value = "Confirm Sign Message in Freighter…"
+                            }
+                            FreighterWcClient.signMessage(session, message)
+                        },
                     )
                 }
 
                 app.container.settingsRepository.setAuthToken(result.token)
                 app.container.settingsRepository.setHolderAddress(result.address)
+                val role = result.role
+                    ?: dev.krydo.mobile.util.JwtPeek.role(result.token)
+                    ?: "user"
+                app.container.settingsRepository.setWalletRole(role)
                 app.container.settingsRepository.setOnboardingDone(true)
                 app.container.walletSessionStore.upsert(
                     WalletAccount(

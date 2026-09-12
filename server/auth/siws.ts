@@ -28,12 +28,12 @@ const log = childLogger("auth/siws");
 const verifySchema = z.object({
   address: stellarAddressSchema,
   message: z.string().min(20).max(4_000),
-  // base64-encoded 64-byte ed25519 signature.
+  // base64 or hex-encoded 64-byte ed25519 signature.
   signature: z.string().min(16).max(1_024),
 });
 
-const wcSessionSchema = z.object({
-  address: stellarAddressSchema,
+/** WC login must prove address control with the same SIWS signature as /verify. */
+const wcSessionSchema = verifySchema.extend({
   chainId: z.string().min(3).max(64).optional(),
   topic: z.string().min(8).max(128).optional(),
   provider: z.literal("freighter-wc").default("freighter-wc"),
@@ -73,12 +73,40 @@ async function resolveRoleAndIssueSession(address: string) {
   return { token, wallet, needsRoleAnchor };
 }
 
+/**
+ * Shared SIWS verify: address bind + SEP-53 + single-use nonce.
+ */
+async function verifySiwsOwnership(
+  address: string,
+  message: string,
+  signature: string,
+): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+  if (!message.includes(address)) {
+    return { ok: false, status: 401, message: "Message does not match address" };
+  }
+  const nonceMatch = message.match(/Nonce:\s*([a-fA-F0-9]{8,})/);
+  if (!nonceMatch) {
+    return { ok: false, status: 401, message: "Message is missing a nonce" };
+  }
+  const nonce = nonceMatch[1];
+
+  if (!verifySep53Message(address, message, signature)) {
+    return { ok: false, status: 401, message: "Signature verification failed" };
+  }
+
+  if (!(await consumeNonce(nonce, address))) {
+    return { ok: false, status: 401, message: "Invalid or expired nonce" };
+  }
+
+  return { ok: true };
+}
+
 export function registerAuthRoutes(app: Express) {
   /** GET /api/auth/nonce?address=G... — returns a server-issued nonce to sign. */
   app.get("/api/auth/nonce", sensitiveLimiter, async (req: Request, res: Response) => {
     try {
       const address = stellarAddressSchema.parse(req.query.address);
-      const { nonce, expiresAt } = issueNonce(address);
+      const { nonce, expiresAt } = await issueNonce(address);
       res.json({ nonce, expiresAt });
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -89,18 +117,22 @@ export function registerAuthRoutes(app: Express) {
   });
 
   /**
-   * POST /api/auth/wc-session — Freighter WalletConnect one-tap login.
-   * After the user Approves the WC session in Freighter, the mobile app sends
-   * the revealed G… address. No second SEP-53 sign popup.
+   * POST /api/auth/wc-session — Freighter WalletConnect login.
+   * Requires SEP-53 signed SIWS message (same crypto as /api/auth/verify).
+   * Unsigned address-only login is rejected.
    */
   app.post("/api/auth/wc-session", sensitiveLimiter, async (req: Request, res: Response) => {
     try {
-      const { address, chainId } = wcSessionSchema.parse(req.body);
+      const { address, message, signature, chainId } = wcSessionSchema.parse(req.body);
       if (chainId && !chainId.startsWith("stellar:")) {
         return res.status(400).json({ message: "chainId must be a stellar CAIP-2 id" });
       }
+      const verified = await verifySiwsOwnership(address, message, signature);
+      if (!verified.ok) {
+        return res.status(verified.status).json({ message: verified.message });
+      }
       const session = await resolveRoleAndIssueSession(address);
-      log.info({ address, chainId, provider: "freighter-wc" }, "wc-session login");
+      log.info({ address, chainId, provider: "freighter-wc" }, "wc-session login (SIWS)");
       res.json(session);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
@@ -115,29 +147,10 @@ export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/verify", sensitiveLimiter, async (req: Request, res: Response) => {
     try {
       const { address, message, signature } = verifySchema.parse(req.body);
-
-      // The signed message must reference the claimed address (binds the
-      // signature to this identity) and carry the nonce we issued.
-      if (!message.includes(address)) {
-        return res.status(401).json({ message: "Message does not match address" });
+      const verified = await verifySiwsOwnership(address, message, signature);
+      if (!verified.ok) {
+        return res.status(verified.status).json({ message: verified.message });
       }
-      const nonceMatch = message.match(/Nonce:\s*([a-fA-F0-9]{8,})/);
-      if (!nonceMatch) {
-        return res.status(401).json({ message: "Message is missing a nonce" });
-      }
-      const nonce = nonceMatch[1];
-
-      // Freighter signs per SEP-53 — verify the prefixed SHA-256 payload.
-      if (!verifySep53Message(address, message, signature)) {
-        return res.status(401).json({ message: "Signature verification failed" });
-      }
-
-      // Single-use nonce check: prevents replay and ensures the signed message
-      // was created from a challenge we issued.
-      if (!consumeNonce(nonce, address)) {
-        return res.status(401).json({ message: "Invalid or expired nonce" });
-      }
-
       const session = await resolveRoleAndIssueSession(address);
       res.json(session);
     } catch (err: any) {

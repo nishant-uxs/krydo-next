@@ -9,14 +9,14 @@ describe("SIWE nonce binding", () => {
     __resetNonceStoreForTests();
   });
 
-  it("issues and consumes address+chain bound nonce", () => {
+  it("issues and consumes address+chain bound nonce", async () => {
     const address = normalizeEvmAddress("0x1111111111111111111111111111111111111111");
     const chain = evmCaip2(1);
-    const { nonce } = issueNonce(address, chain);
-    expect(consumeNonce(nonce, address, "eip155:137")).toBe(false);
-    const { nonce: n2 } = issueNonce(address, chain);
-    expect(consumeNonce(n2, address, chain)).toBe(true);
-    expect(consumeNonce(n2, address, chain)).toBe(false);
+    const { nonce } = await issueNonce(address, chain);
+    expect(await consumeNonce(nonce, address, "eip155:137")).toBe(false);
+    const { nonce: n2 } = await issueNonce(address, chain);
+    expect(await consumeNonce(n2, address, chain)).toBe(true);
+    expect(await consumeNonce(n2, address, chain)).toBe(false);
   });
 
   it("supports configured EVM chain ids", () => {

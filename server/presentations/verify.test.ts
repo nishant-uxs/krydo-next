@@ -51,7 +51,7 @@ const credentialDoc = {
   revokedAt: null,
 };
 
-function issueStatusRequest(audience = "https://lender.example") {
+async function issueStatusRequest(audience = "https://lender.example") {
   return issuePresentationRequest({
     verifier: VERIFIER,
     audience,
@@ -62,7 +62,7 @@ function issueStatusRequest(audience = "https://lender.example") {
   });
 }
 
-function buildVp(request = issueStatusRequest()) {
+function buildVp(request: Awaited<ReturnType<typeof issueStatusRequest>>) {
   return createPresentation({
     request: toPublicPresentationRequest(request),
     holderAddress: HOLDER,
@@ -89,7 +89,7 @@ describe("verifyPresentation", () => {
   });
 
   it("accepts a valid status presentation and leaks no claims", async () => {
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
     const result = await verifyPresentation(vp);
 
@@ -106,7 +106,7 @@ describe("verifyPresentation", () => {
   });
 
   it("rejects replay of the same VP", async () => {
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
     const first = await verifyPresentation(vp);
     expect(first.valid).toBe(true);
@@ -117,7 +117,7 @@ describe("verifyPresentation", () => {
   });
 
   it("rejects wrong challenge", async () => {
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
     vp.challenge = "b".repeat(64);
     vp.proof.challenge = "b".repeat(64);
@@ -127,7 +127,7 @@ describe("verifyPresentation", () => {
   });
 
   it("rejects wrong audience", async () => {
-    const request = issueStatusRequest("https://lender-a.example");
+    const request = await issueStatusRequest("https://lender-a.example");
     const vp = buildVp(request);
     vp.domain = "https://lender-b.example";
     vp.proof.domain = "https://lender-b.example";
@@ -137,9 +137,9 @@ describe("verifyPresentation", () => {
   });
 
   it("rejects expired request", async () => {
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
-    __expirePresentationRequestForTests(request.id);
+    await __expirePresentationRequestForTests(request.id);
     const result = await verifyPresentation(vp);
     expect(result.valid).toBe(false);
     expect(result.message).toMatch(/expired/i);
@@ -152,7 +152,7 @@ describe("verifyPresentation", () => {
   });
 
   it("rejects missing holder DID binding", async () => {
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
     vp.holder = "did:example:attacker";
     const result = await verifyPresentation(vp);
@@ -165,7 +165,7 @@ describe("verifyPresentation", () => {
       ...credentialDoc,
       status: "revoked",
     } as never);
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
     const result = await verifyPresentation(vp);
     expect(result.valid).toBe(false);
@@ -177,7 +177,7 @@ describe("verifyPresentation", () => {
       ...credentialDoc,
       expiresAt: new Date("2020-01-01T00:00:00Z"),
     } as never);
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
     const result = await verifyPresentation(vp);
     expect(result.valid).toBe(false);
@@ -189,7 +189,7 @@ describe("verifyPresentation", () => {
       name: "Revoked Bureau",
       active: false,
     } as never);
-    const request = issueStatusRequest();
+    const request = await issueStatusRequest();
     const vp = buildVp(request);
     const result = await verifyPresentation(vp);
     expect(result.valid).toBe(false);

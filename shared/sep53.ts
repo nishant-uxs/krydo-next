@@ -25,18 +25,36 @@ export function sep53MessageHash(message: string): Buffer {
 
 /**
  * Verify a Freighter / SEP-53 message signature.
- * `signature` may be base64 string or raw 64-byte buffer.
+ * `signature` may be base64, hex (128 chars), or raw 64-byte buffer.
  */
+export function normalizeEd25519Signature(
+  signature: string | Buffer | Uint8Array,
+): Buffer | null {
+  try {
+    if (typeof signature !== "string") {
+      const buf = Buffer.from(signature);
+      return buf.length === 64 ? buf : null;
+    }
+    const trimmed = signature.trim();
+    if (/^[0-9a-fA-F]{128}$/.test(trimmed)) {
+      return Buffer.from(trimmed, "hex");
+    }
+    const b64 = Buffer.from(trimmed, "base64");
+    if (b64.length === 64) return b64;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function verifySep53Message(
   address: string,
   message: string,
   signature: string | Buffer | Uint8Array,
 ): boolean {
   try {
-    const sigBuf = typeof signature === "string"
-      ? Buffer.from(signature, "base64")
-      : Buffer.from(signature);
-    if (sigBuf.length !== 64) return false;
+    const sigBuf = normalizeEd25519Signature(signature);
+    if (!sigBuf) return false;
     const kp = Keypair.fromPublicKey(address);
     return kp.verify(sep53MessageHash(message), sigBuf);
   } catch {

@@ -429,11 +429,19 @@ export function registerCredentialRequestRoutes(app: Express) {
         }
 
         // Single-shot approve+issue requires a wallet-signed issue tx when contracts are live.
+        // offChainOk is demo-only and must be enabled via ALLOW_OFFCHAIN_ISSUE=true.
+        const { config } = await import("../config");
         const offChain = !!offChainOk;
+        if (offChain && !config.allowOffChainIssue) {
+          return res.status(403).json({
+            message:
+              "offChainOk is disabled. Set ALLOW_OFFCHAIN_ISSUE=true on the API for demo-only off-chain issuance, or sign issue_credential and pass onChainTxHash.",
+          });
+        }
         if (CREDENTIALS_ID && !onChainTxHash && !offChain) {
           return res.status(400).json({
             message:
-              "onChainTxHash required (or use prepareOnly / offChainOk). Confirm in the app popup, then sign issue_credential with your Stellar wallet.",
+              "onChainTxHash required (or use prepareOnly / offChainOk when ALLOW_OFFCHAIN_ISSUE=true). Confirm in the app popup, then sign issue_credential with your Stellar wallet.",
           });
         }
 
