@@ -270,6 +270,7 @@ export function registerCredentialRequestRoutes(app: Express) {
           prepareOnly,
           finalize,
           credentialId: providedCredentialId,
+          offChainOk,
         } = req.body;
         const respondedBy = req.auth!.sub;
 
@@ -428,15 +429,19 @@ export function registerCredentialRequestRoutes(app: Express) {
         }
 
         // Single-shot approve+issue requires a wallet-signed issue tx when contracts are live.
-        if (CREDENTIALS_ID && !onChainTxHash) {
+        const offChain = !!offChainOk;
+        if (CREDENTIALS_ID && !onChainTxHash && !offChain) {
           return res.status(400).json({
             message:
-              "onChainTxHash required (or use prepareOnly). Confirm in the app popup, then sign issue_credential with your Stellar wallet.",
+              "onChainTxHash required (or use prepareOnly / offChainOk). Confirm in the app popup, then sign issue_credential with your Stellar wallet.",
           });
         }
 
         if (onChainTxHash) {
           await storage.updateTransactionTxHash(result.tx.id, onChainTxHash);
+        } else if (offChain) {
+          const { OFF_CHAIN_TX_HASH } = await import("@shared/schema");
+          await storage.updateTransactionTxHash(result.tx.id, OFF_CHAIN_TX_HASH);
         }
 
         const updated = await storage.updateCredentialRequestStatus(
