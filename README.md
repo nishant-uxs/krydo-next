@@ -76,32 +76,32 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Alice as Alice<br/>(browser)
+    actor Alice as Alice browser
     participant Server as Krydo API
     participant Chain as Stellar
     actor Lender as Lender
 
-    Note over Alice,Chain: Issuance (once, done by employer)
-    Alice->>Chain: Employer signs KrydoCredentials.issue_credential(...)
-    Chain-->>Alice: credential hash on-chain, plaintext off-chain
+    Note over Alice,Chain: Issuance once by employer
+    Alice->>Chain: Employer signs issue_credential
+    Chain-->>Alice: credential hash on-chain plaintext off-chain
 
-    Note over Alice,Lender: Proof generation (server-side prover today)
-    Alice->>Server: POST /api/zk/generate<br/>(auth; server reads claimData)
-    Server->>Server: C = v·G + r·H<br/>π = proveRange(…)
-    Server-->>Alice: { proofId, commitment, credentialHash }
+    Note over Alice,Lender: Proof generation server-side prover today
+    Alice->>Server: POST /api/zk/generate with auth
+    Server->>Server: Pedersen commit plus range proof
+    Server-->>Alice: proofId commitment credentialHash
     opt public audit trail
-        Alice->>Chain: wallet signs KrydoAudit.anchor(zkproof, …)
-        Alice->>Server: POST /api/zk/:id/anchor { txHash }
+        Alice->>Chain: wallet signs KrydoAudit.anchor
+        Alice->>Server: POST /api/zk/:id/anchor
     end
 
-    Note over Alice,Lender: Verification (public)
+    Note over Alice,Lender: Verification public
     Alice->>Lender: share proofId
     Lender->>Server: POST /api/zk/verify
     Server->>Server: re-run EC math
     Server->>Chain: check issuer still whitelisted
-    Server-->>Lender: { valid: true, reason: "v ≥ threshold" }
+    Server-->>Lender: valid true reason threshold met
 
-    Note right of Lender: Lender knows Alice earns ≥ ₹10L.<br/>Does NOT know actual amount.
+    Note right of Lender: Lender learns income above threshold not the actual amount
 ```
 
 > **For deeper flows** (Sign-in-with-Stellar + role-anchor, credential request lifecycle with wallet rollback, wallet-signed issuance, sigma-protocol internals, state machines, deployment topology), see **[`DOCUMENTATION.md`](./DOCUMENTATION.md)**.
