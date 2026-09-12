@@ -59,7 +59,7 @@ fun HomeScreen(
     onOpenZk: () -> Unit = {},
     onOpenInbox: () -> Unit = {},
 ) {
-    val credentials by viewModel.credentials.collectAsStateWithLifecycle()
+    val credentials by viewModel.activeCredentials.collectAsStateWithLifecycle()
     val requests by viewModel.credentialRequests.collectAsStateWithLifecycle()
     val proofs by viewModel.zkProofs.collectAsStateWithLifecycle()
     val inbox by viewModel.issuerInbox.collectAsStateWithLifecycle()

@@ -74,7 +74,7 @@ import dev.krydo.mobile.ui.theme.KrydoColors
 fun ZkProofsScreen(
     viewModel: AppViewModel,
 ) {
-    val credentials by viewModel.credentials.collectAsStateWithLifecycle()
+    val credentials by viewModel.activeCredentials.collectAsStateWithLifecycle()
     val proofs by viewModel.zkProofs.collectAsStateWithLifecycle()
     val ui by viewModel.zkUi.collectAsStateWithLifecycle()
     val context = LocalContext.current

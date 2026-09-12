@@ -143,8 +143,15 @@ fun KrydoRoot(
                     arguments = listOf(navArgument("id") { type = NavType.StringType }),
                 ) { entry ->
                     val id = entry.arguments?.getString("id").orEmpty()
+                    val archivedIds by viewModel.archivedCredentialIds.collectAsStateWithLifecycle()
+                    val archived = id in archivedIds
                     CredentialDetailScreen(
                         credential = viewModel.credential(id),
+                        archived = archived,
+                        onArchiveToggle = {
+                            if (archived) viewModel.unarchiveCredential(id)
+                            else viewModel.archiveCredential(id)
+                        },
                         onBack = { navController.popBackStack() },
                     )
                 }

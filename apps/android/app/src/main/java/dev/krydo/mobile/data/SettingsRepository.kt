@@ -41,6 +41,7 @@ class SettingsRepository(private val context: Context) {
     private val roleKey = stringPreferencesKey("wallet_role")
     private val credCountKey = intPreferencesKey("known_credential_count")
     private val offlineCredsKey = stringPreferencesKey("offline_credentials_json")
+    private val archivedCredsKey = stringPreferencesKey("archived_credential_ids")
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -51,6 +52,11 @@ class SettingsRepository(private val context: Context) {
             walletRole = prefs[roleKey].orEmpty().ifBlank { "user" },
             knownCredentialCount = prefs[credCountKey] ?: 0,
         )
+    }
+
+    /** Local archive set (credential ids). Not synced to server. */
+    val archivedCredentialIds: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        decodeIdSet(prefs[archivedCredsKey])
     }
 
     suspend fun setApiBaseUrl(url: String) {
@@ -84,6 +90,14 @@ class SettingsRepository(private val context: Context) {
     suspend fun loadOfflineCredentialsJson(): String =
         context.dataStore.data.first()[offlineCredsKey].orEmpty()
 
+    suspend fun setCredentialArchived(id: String, archived: Boolean) {
+        context.dataStore.edit { prefs ->
+            val next = decodeIdSet(prefs[archivedCredsKey]).toMutableSet()
+            if (archived) next.add(id) else next.remove(id)
+            prefs[archivedCredsKey] = encodeIdSet(next)
+        }
+    }
+
     suspend fun clearSession() {
         context.dataStore.edit {
             it[tokenKey] = ""
@@ -95,5 +109,15 @@ class SettingsRepository(private val context: Context) {
 
     companion object {
         fun trimSlash(url: String): String = url.trim().trimEnd('/')
+
+        private fun decodeIdSet(raw: String?): Set<String> =
+            raw.orEmpty()
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toSet()
+
+        private fun encodeIdSet(ids: Set<String>): String =
+            ids.filter { it.isNotBlank() }.sorted().joinToString(",")
     }
 }

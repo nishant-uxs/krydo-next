@@ -18,12 +18,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import dev.krydo.mobile.data.ClaimCategories
 
 data class ProveUiState(
     val input: String = "",
@@ -47,6 +50,8 @@ data class SettingsUiState(
 data class CredentialsUiState(
     val loading: Boolean = false,
     val error: String? = null,
+    /** false = Active tab, true = Archived tab */
+    val showArchived: Boolean = false,
 )
 
 data class RequestUiState(
@@ -98,6 +103,16 @@ class AppViewModel(
 
     val credentials: StateFlow<List<StoredCredential>> =
         container.credentialRepository.credentials
+
+    val archivedCredentialIds: StateFlow<Set<String>> =
+        container.settingsRepository.archivedCredentialIds
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** Active (non-archived) credentials for home counts / prove matching. */
+    val activeCredentials: StateFlow<List<StoredCredential>> =
+        combine(credentials, archivedCredentialIds) { list, archived ->
+            list.filter { it.id !in archived }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val issuers: StateFlow<List<IssuerDto>> =
         container.issuerRequestRepository.issuers
@@ -466,10 +481,11 @@ class AppViewModel(
             container.credentialRepository.refresh()
             runCatching { container.presentationRepository.getRequest(requestId) }
                 .onSuccess { req ->
+                    val archived = container.settingsRepository.archivedCredentialIds.first()
                     val matches = container.credentialRepository.matchForClaim(
                         req.requestedCredentials.firstOrNull()?.claimType
                             ?: req.policy.claimType,
-                    )
+                    ).filter { it.id !in archived }
                     _prove.update {
                         it.copy(
                             loading = false,
@@ -591,6 +607,39 @@ class AppViewModel(
                 )
             }
         }
+    }
+
+    fun setCredentialsShowArchived(showArchived: Boolean) {
+        _credentialsUi.update { it.copy(showArchived = showArchived) }
+    }
+
+    fun archiveCredential(id: String) {
+        viewModelScope.launch {
+            container.settingsRepository.setCredentialArchived(id, true)
+        }
+    }
+
+    fun unarchiveCredential(id: String) {
+        viewModelScope.launch {
+            container.settingsRepository.setCredentialArchived(id, false)
+        }
+    }
+
+    fun isCredentialArchived(id: String): Boolean =
+        archivedCredentialIds.value.contains(id)
+
+    /** Grouped sections for the credentials list (Active or Archived tab). */
+    fun credentialSections(
+        all: List<StoredCredential>,
+        archivedIds: Set<String>,
+        showArchived: Boolean,
+    ): List<Pair<String, List<StoredCredential>>> {
+        val filtered = if (showArchived) {
+            all.filter { it.id in archivedIds }
+        } else {
+            all.filter { it.id !in archivedIds }
+        }
+        return ClaimCategories.groupByCategory(filtered)
     }
 
     fun refreshIssuerInbox() {

@@ -38,7 +38,7 @@ fun ProveScreen(
     onShowResult: () -> Unit,
 ) {
     val state by viewModel.prove.collectAsStateWithLifecycle()
-    val credentials by viewModel.credentials.collectAsStateWithLifecycle()
+    val credentials by viewModel.activeCredentials.collectAsStateWithLifecycle()
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = KrydoColors.ElectricBlue,
         unfocusedBorderColor = KrydoColors.BorderSubtle,
