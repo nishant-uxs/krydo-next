@@ -19,6 +19,9 @@ object ClaimCategories {
             .replace('_', ' ')
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
+    /** Known claim types in display order (for filter chips). */
+    fun knownClaimTypes(): List<String> = labels.keys.toList()
+
     /** Stable section order; unknown types sort last alphabetically. */
     fun sectionOrder(claimType: String): Int {
         val idx = labels.keys.indexOf(claimType)

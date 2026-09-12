@@ -1,3 +1,5 @@
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { Switch, Route, useLocation, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -16,6 +18,7 @@ import IssuersPage from "@/pages/issuers";
 import IssueCredentialPage from "@/pages/issue-credential";
 import CredentialsPage from "@/pages/credentials";
 import VerifyPage from "@/pages/verify";
+import DownloadAppPage from "@/pages/download-app";
 import TransactionsPage from "@/pages/transactions";
 import ZkProofsPage from "@/pages/zk-proofs";
 import RequestCredentialPage from "@/pages/request-credential";
@@ -80,9 +83,13 @@ function Router() {
   const { isConnected } = useWallet();
   const [location] = useLocation();
 
-  // `/verify` and `/verify/:id` are the only public routes — QR-scanners /
-  // external verifiers must be able to land here without a wallet.
+  // Public routes (no wallet required)
   const isPublicVerifyRoute = location === "/verify" || location.startsWith("/verify/");
+  const isPublicDownloadRoute = location === "/download" || location === "/app";
+
+  if (isPublicDownloadRoute) {
+    return <DownloadAppPage />;
+  }
 
   if (!isConnected && !isPublicVerifyRoute) {
     return <Landing />;
@@ -125,6 +132,8 @@ function App() {
           <WalletProvider>
             <Toaster />
             <Router />
+            <Analytics />
+            <SpeedInsights />
           </WalletProvider>
         </EvmProviders>
       </TooltipProvider>

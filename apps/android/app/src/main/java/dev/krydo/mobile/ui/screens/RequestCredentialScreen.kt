@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apartment
+import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.CircularProgressIndicator
@@ -347,8 +348,14 @@ private fun RequestStatusCard(
     val statusColor = when (request.status.lowercase()) {
         "pending" -> KrydoColors.Warning
         "issued", "approved" -> KrydoColors.Success
-        "rejected", "denied" -> KrydoColors.Error
+        "rejected", "denied", "cancelled", "canceled" -> KrydoColors.Error
         else -> KrydoColors.TextMuted
+    }
+    val statusIcon = when (request.status.lowercase()) {
+        "pending" -> Icons.Outlined.Schedule
+        "issued", "approved" -> Icons.Outlined.CheckCircle
+        "rejected", "denied", "cancelled", "canceled" -> Icons.Outlined.Cancel
+        else -> Icons.Outlined.Schedule
     }
     Column(
         modifier = Modifier
@@ -361,7 +368,7 @@ private fun RequestStatusCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Outlined.Schedule,
+                imageVector = statusIcon,
                 contentDescription = null,
                 tint = statusColor,
                 modifier = Modifier.size(18.dp),

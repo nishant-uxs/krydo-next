@@ -1,8 +1,9 @@
 package dev.krydo.mobile.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.Icon
@@ -26,24 +28,38 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.krydo.mobile.data.CredentialExpiry
+import dev.krydo.mobile.data.ExpiryUrgency
 import dev.krydo.mobile.data.StoredCredential
 import dev.krydo.mobile.ui.theme.CardShape
 import dev.krydo.mobile.ui.theme.KrydoColors
 import dev.krydo.mobile.ui.theme.PillShape
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CredentialCard(
     credential: StoredCredential,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    pinned: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
+    val haptics = LocalHapticFeedback.current
     val verified = credential.status.equals("active", ignoreCase = true) ||
         credential.status.equals("verified", ignoreCase = true) ||
         credential.status.equals("issued", ignoreCase = true)
+    val urgency = CredentialExpiry.urgency(credential.expiresAt)
+    val expiryColor = when (urgency) {
+        ExpiryUrgency.Expired -> KrydoColors.Error
+        ExpiryUrgency.Soon -> KrydoColors.Warning
+        ExpiryUrgency.None -> KrydoColors.TextSecondary
+    }
 
     Row(
         modifier = modifier
@@ -51,7 +67,15 @@ fun CredentialCard(
             .clip(CardShape)
             .background(KrydoColors.CardSurface)
             .border(1.dp, KrydoColors.BorderSubtle, CardShape)
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick?.let { action ->
+                    {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        action()
+                    }
+                },
+            )
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -60,7 +84,13 @@ fun CredentialCard(
                 .width(3.dp)
                 .height(56.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(KrydoColors.ElectricBlue)
+                .background(
+                    when (urgency) {
+                        ExpiryUrgency.Expired -> KrydoColors.Error
+                        ExpiryUrgency.Soon -> KrydoColors.Warning
+                        ExpiryUrgency.None -> KrydoColors.ElectricBlue
+                    },
+                )
                 .align(Alignment.CenterVertically),
         )
         Box(
@@ -87,19 +117,41 @@ fun CredentialCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = credential.title,
-                    color = KrydoColors.TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                Row(
                     modifier = Modifier.weight(1f),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (pinned) {
+                        Icon(
+                            imageVector = Icons.Outlined.PushPin,
+                            contentDescription = "Pinned",
+                            tint = KrydoColors.Cyan,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                    Text(
+                        text = credential.title,
+                        color = KrydoColors.TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 StatusChip(
-                    text = if (verified) "Verified" else credential.status,
-                    tint = if (verified) KrydoColors.Success else KrydoColors.Warning,
+                    text = when (urgency) {
+                        ExpiryUrgency.Expired -> "Expired"
+                        ExpiryUrgency.Soon -> "Expiring"
+                        ExpiryUrgency.None -> if (verified) "Verified" else credential.status
+                    },
+                    tint = when (urgency) {
+                        ExpiryUrgency.Expired -> KrydoColors.Error
+                        ExpiryUrgency.Soon -> KrydoColors.Warning
+                        ExpiryUrgency.None -> if (verified) KrydoColors.Success else KrydoColors.Warning
+                    },
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -121,8 +173,8 @@ fun CredentialCard(
             }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Expires ${credential.expiresAt?.take(10) ?: "—"}",
-                color = KrydoColors.TextSecondary,
+                text = CredentialExpiry.label(credential.expiresAt),
+                color = expiryColor,
                 fontSize = 12.sp,
             )
         }

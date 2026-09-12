@@ -87,13 +87,25 @@ fun ZkProofsScreen(
     var proofType by remember { mutableStateOf("range_above") }
     var threshold by remember { mutableStateOf("") }
     var targetValue by remember { mutableStateOf("") }
+    var formError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshCredentials()
         viewModel.refreshZkProofs()
     }
 
-    LaunchedEffect(active) {
+    LaunchedEffect(active, ui.preferredCredentialId) {
+        val prefer = ui.preferredCredentialId
+        if (!prefer.isNullOrBlank()) {
+            val match = active.firstOrNull { it.id == prefer }
+            if (match != null) {
+                selectedCred = match
+                viewModel.consumeZkPreferredCredential()
+                return@LaunchedEffect
+            }
+            if (active.isEmpty()) return@LaunchedEffect
+            viewModel.consumeZkPreferredCredential()
+        }
         if (selectedCred == null || active.none { it.id == selectedCred?.id }) {
             selectedCred = active.firstOrNull()
         }
@@ -123,7 +135,7 @@ fun ZkProofsScreen(
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = "Pick a proof type, set the claim, then choose a credential and generate a shareable QR.",
+            text = "Pick a proof type, set the claim, then choose a credential and generate a shareable QR. Proofs are created on the Krydo API (server-side sigma proofs) — share only the verify link.",
             color = KrydoColors.TextMuted,
             fontSize = 13.sp,
         )
@@ -193,17 +205,27 @@ fun ZkProofsScreen(
         }
 
         // 3) Generate
+        formError?.let {
+            Text(text = it, color = KrydoColors.Error, fontSize = 13.sp)
+        }
         KrydoPrimaryButton(
             text = if (ui.generating) "Generating…" else "3. Generate & share QR",
             onClick = {
-                val cred = selectedCred ?: return@KrydoPrimaryButton
+                val cred = selectedCred
+                if (cred == null) {
+                    formError = "Pick a credential first."
+                    return@KrydoPrimaryButton
+                }
                 val thr = threshold.toDoubleOrNull()
                 if ((proofType == "range_above" || proofType == "range_below") && thr == null) {
+                    formError = "Enter a valid numeric threshold."
                     return@KrydoPrimaryButton
                 }
                 if (proofType == "equality" && targetValue.isBlank()) {
+                    formError = "Enter the exact target value."
                     return@KrydoPrimaryButton
                 }
+                formError = null
                 viewModel.generateZkProof(
                     credentialId = cred.id,
                     proofType = proofType,

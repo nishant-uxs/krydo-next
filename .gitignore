@@ -44,3 +44,8 @@ docs/*.log
 docs/*.out
 docs/*.toc
 .vercel
+
+# Large Android APKs (served via GitHub Releases)
+*.apk
+client/public/downloads/
+

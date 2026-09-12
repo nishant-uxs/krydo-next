@@ -52,7 +52,18 @@ data class CredentialsUiState(
     val error: String? = null,
     /** false = Active tab, true = Archived tab */
     val showArchived: Boolean = false,
+    val searchQuery: String = "",
+    /** null = all categories; otherwise claimType key */
+    val categoryFilter: String? = null,
+    val sortMode: CredentialSortMode = CredentialSortMode.Newest,
 )
+
+enum class CredentialSortMode(val label: String) {
+    Newest("Newest first"),
+    Oldest("Oldest first"),
+    Title("Title A–Z"),
+    Issuer("Issuer A–Z"),
+}
 
 data class RequestUiState(
     val loading: Boolean = false,
@@ -68,6 +79,8 @@ data class ZkUiState(
     val successMessage: String? = null,
     val lastProof: ZkProofDto? = null,
     val shareProofId: String? = null,
+    /** One-shot preselect when navigating from credential detail. */
+    val preferredCredentialId: String? = null,
 )
 
 data class VerifierUiState(
@@ -106,6 +119,10 @@ class AppViewModel(
 
     val archivedCredentialIds: StateFlow<Set<String>> =
         container.settingsRepository.archivedCredentialIds
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    val pinnedCredentialIds: StateFlow<Set<String>> =
+        container.settingsRepository.pinnedCredentialIds
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /** Active (non-archived) credentials for home counts / prove matching. */
@@ -613,9 +630,23 @@ class AppViewModel(
         _credentialsUi.update { it.copy(showArchived = showArchived) }
     }
 
+    fun setCredentialsSearchQuery(query: String) {
+        _credentialsUi.update { it.copy(searchQuery = query) }
+    }
+
+    fun setCredentialsCategoryFilter(claimType: String?) {
+        _credentialsUi.update { it.copy(categoryFilter = claimType) }
+    }
+
+    fun setCredentialsSortMode(sortMode: CredentialSortMode) {
+        _credentialsUi.update { it.copy(sortMode = sortMode) }
+    }
+
     fun archiveCredential(id: String) {
         viewModelScope.launch {
             container.settingsRepository.setCredentialArchived(id, true)
+            // Archived credentials shouldn't stay pinned.
+            container.settingsRepository.setCredentialPinned(id, false)
         }
     }
 
@@ -623,6 +654,28 @@ class AppViewModel(
         viewModelScope.launch {
             container.settingsRepository.setCredentialArchived(id, false)
         }
+    }
+
+    fun pinCredential(id: String) {
+        viewModelScope.launch {
+            container.settingsRepository.setCredentialPinned(id, true)
+        }
+    }
+
+    fun unpinCredential(id: String) {
+        viewModelScope.launch {
+            container.settingsRepository.setCredentialPinned(id, false)
+        }
+    }
+
+    fun preferZkCredential(id: String) {
+        _zkUi.update { it.copy(preferredCredentialId = id) }
+    }
+
+    fun consumeZkPreferredCredential(): String? {
+        val id = _zkUi.value.preferredCredentialId ?: return null
+        _zkUi.update { it.copy(preferredCredentialId = null) }
+        return id
     }
 
     fun isCredentialArchived(id: String): Boolean =
@@ -633,13 +686,53 @@ class AppViewModel(
         all: List<StoredCredential>,
         archivedIds: Set<String>,
         showArchived: Boolean,
+        searchQuery: String = "",
+        categoryFilter: String? = null,
+        pinnedIds: Set<String> = emptySet(),
+        sortMode: CredentialSortMode = CredentialSortMode.Newest,
     ): List<Pair<String, List<StoredCredential>>> {
-        val filtered = if (showArchived) {
+        var filtered = if (showArchived) {
             all.filter { it.id in archivedIds }
         } else {
             all.filter { it.id !in archivedIds }
         }
-        return ClaimCategories.groupByCategory(filtered)
+        val q = searchQuery.trim().lowercase()
+        if (q.isNotEmpty()) {
+            filtered = filtered.filter { cred ->
+                listOf(
+                    cred.title,
+                    cred.claimType,
+                    cred.issuerName,
+                    cred.displaySummary,
+                    cred.claimValue.orEmpty(),
+                    ClaimCategories.labelFor(cred.claimType),
+                ).any { it.lowercase().contains(q) }
+            }
+        }
+        if (!categoryFilter.isNullOrBlank()) {
+            filtered = filtered.filter { it.claimType == categoryFilter }
+        }
+        fun sortList(list: List<StoredCredential>): List<StoredCredential> =
+            when (sortMode) {
+                CredentialSortMode.Newest -> list.sortedByDescending { it.issuedAt }
+                CredentialSortMode.Oldest -> list.sortedBy { it.issuedAt }
+                CredentialSortMode.Title -> list.sortedBy { it.title.lowercase() }
+                CredentialSortMode.Issuer -> list.sortedBy { it.issuerName.lowercase() }
+            }
+
+        if (!showArchived) {
+            val pinned = sortList(filtered.filter { it.id in pinnedIds })
+            val rest = filtered.filter { it.id !in pinnedIds }
+            val sections = mutableListOf<Pair<String, List<StoredCredential>>>()
+            if (pinned.isNotEmpty()) sections += "Pinned" to pinned
+            sections += ClaimCategories.groupByCategory(rest).map { (label, list) ->
+                label to sortList(list)
+            }
+            return sections
+        }
+        return ClaimCategories.groupByCategory(filtered).map { (label, list) ->
+            label to sortList(list)
+        }
     }
 
     fun refreshIssuerInbox() {

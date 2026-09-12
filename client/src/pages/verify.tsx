@@ -41,8 +41,12 @@ import {
   ChevronRight,
   ShieldAlert,
   HelpCircle,
-  Loader2
+  Loader2,
+  Share2,
+  Copy,
+  Check
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { shortenAddress } from "@/lib/wallet";
 import type { Credential } from "@shared/schema";
 import { claimTypeLabels, proofTypeLabels, type ClaimType, type ProofType } from "@shared/schema";
@@ -115,14 +119,81 @@ interface ZkVerificationResult {
   } | null;
 }
 
+function ShareVerifyActions({
+  title,
+  valid,
+}: {
+  title: string;
+  valid: boolean;
+}) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const url = typeof window !== "undefined" ? window.location.href : "";
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast({ title: "Link copied", description: "Verification URL is on your clipboard." });
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast({ title: "Copy failed", description: "Select the URL from the address bar.", variant: "destructive" });
+    }
+  };
+
+  const share = async () => {
+    const text = `${title}: ${valid ? "VALID" : "INVALID"} — ${url}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+        return;
+      }
+    } catch {
+      /* user cancelled or unsupported */
+    }
+    await copyLink();
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="rounded-full"
+        onClick={share}
+        data-testid="button-share-verify"
+      >
+        <Share2 className="w-3.5 h-3.5 mr-1.5" />
+        Share result
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-full text-muted-foreground"
+        onClick={copyLink}
+        data-testid="button-copy-verify-link"
+      >
+        {copied ? <Check className="w-3.5 h-3.5 mr-1.5 text-chart-3" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
+        {copied ? "Copied" : "Copy link"}
+      </Button>
+    </div>
+  );
+}
+
 function CredentialResult({ result }: { result: VerificationResult }) {
   return (
     <Card 
       data-testid="card-verification-result"
-      className="border-border/80 bg-card/45 backdrop-blur-sm shadow-xl rounded-2xl overflow-hidden mt-4"
+      className={`border shadow-xl rounded-2xl overflow-hidden mt-4 backdrop-blur-sm ${
+        result.valid
+          ? "border-chart-3/40 bg-chart-3/5"
+          : "border-destructive/40 bg-destructive/5"
+      }`}
     >
       <CardContent className="p-6">
-        <div className="flex items-center gap-3.5 mb-6 pb-4 border-b">
+        <div className="flex items-center gap-3.5 mb-6 pb-4 border-b border-border/60">
           {result.valid ? (
             <div className="w-11 h-11 rounded-xl bg-chart-3/10 flex items-center justify-center border border-chart-3/20">
               <CheckCircle2 className="w-5.5 h-5.5 text-chart-3" />
@@ -133,6 +204,9 @@ function CredentialResult({ result }: { result: VerificationResult }) {
             </div>
           )}
           <div>
+            <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${result.valid ? "text-chart-3" : "text-destructive"}`}>
+              {result.valid ? "Pass" : "Fail"}
+            </p>
             <h3 className="font-serif font-bold text-xl text-foreground">
               {result.valid ? "Credential Verified" : "Verification Failed"}
             </h3>
@@ -222,6 +296,7 @@ function CredentialResult({ result }: { result: VerificationResult }) {
             )}
           </div>
         )}
+        <ShareVerifyActions title="Krydo credential verification" valid={result.valid} />
       </CardContent>
     </Card>
   );
@@ -231,10 +306,14 @@ function ZkProofResult({ zkResult }: { zkResult: ZkVerificationResult }) {
   return (
     <Card 
       data-testid="card-zk-verification-result"
-      className="border-border/80 bg-card/45 backdrop-blur-sm shadow-xl rounded-2xl overflow-hidden mt-4"
+      className={`border shadow-xl rounded-2xl overflow-hidden mt-4 backdrop-blur-sm ${
+        zkResult.valid
+          ? "border-chart-3/40 bg-chart-3/5"
+          : "border-destructive/40 bg-destructive/5"
+      }`}
     >
       <CardContent className="p-6">
-        <div className="flex items-center gap-3.5 mb-6 pb-4 border-b">
+        <div className="flex items-center gap-3.5 mb-6 pb-4 border-b border-border/60">
           {zkResult.valid ? (
             <div className="w-11 h-11 rounded-xl bg-chart-3/10 flex items-center justify-center border border-chart-3/20">
               <CheckCircle2 className="w-5.5 h-5.5 text-chart-3" />
@@ -245,6 +324,9 @@ function ZkProofResult({ zkResult }: { zkResult: ZkVerificationResult }) {
             </div>
           )}
           <div>
+            <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${zkResult.valid ? "text-chart-3" : "text-destructive"}`}>
+              {zkResult.valid ? "Pass" : "Fail"}
+            </p>
             <h3 className="font-serif font-bold text-xl text-foreground">
               {zkResult.valid ? "ZK Proof Verified" : "ZK Proof Invalid"}
             </h3>
@@ -392,6 +474,7 @@ function ZkProofResult({ zkResult }: { zkResult: ZkVerificationResult }) {
             </div>
           )}
         </div>
+        <ShareVerifyActions title="Krydo ZK proof verification" valid={zkResult.valid} />
       </CardContent>
     </Card>
   );
@@ -456,11 +539,23 @@ export default function VerifyPage() {
         title={autoProofId ? "Proof Verification" : "Verify Claims"}
         description={
           autoProofId
-            ? "Live cryptographic + on-chain verification of the proof encoded in the QR code you scanned."
-            : "Verify credential signatures or zero-knowledge mathematical proofs instantly."
+            ? "Live cryptographic + on-chain verification of the proof encoded in the QR code you scanned. Plaintext claim values are never shown here."
+            : "Verify credential anchors or zero-knowledge proofs. Results show pass/fail and public metadata only — never raw claim values."
         }
         titleTestId="text-verify-title"
       />
+
+      {autoProofId && zkVerifyMutation.isPending && !zkResult && (
+        <Card className="border-border/80 bg-card/45 backdrop-blur-sm rounded-2xl mb-4">
+          <CardContent className="p-6 flex items-center gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Verifying proof…</p>
+              <p className="text-xs text-muted-foreground font-mono truncate">{autoProofId}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue={autoProofId ? "zk-proof" : "credential"} className="min-w-0">
         <TabsList className="w-full h-auto min-h-12 bg-muted/40 border rounded-xl p-1 flex flex-col sm:flex-row gap-1">

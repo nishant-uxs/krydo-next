@@ -42,6 +42,7 @@ class SettingsRepository(private val context: Context) {
     private val credCountKey = intPreferencesKey("known_credential_count")
     private val offlineCredsKey = stringPreferencesKey("offline_credentials_json")
     private val archivedCredsKey = stringPreferencesKey("archived_credential_ids")
+    private val pinnedCredsKey = stringPreferencesKey("pinned_credential_ids")
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -57,6 +58,11 @@ class SettingsRepository(private val context: Context) {
     /** Local archive set (credential ids). Not synced to server. */
     val archivedCredentialIds: Flow<Set<String>> = context.dataStore.data.map { prefs ->
         decodeIdSet(prefs[archivedCredsKey])
+    }
+
+    /** Local pin/favorite set (credential ids). Not synced to server. */
+    val pinnedCredentialIds: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        decodeIdSet(prefs[pinnedCredsKey])
     }
 
     suspend fun setApiBaseUrl(url: String) {
@@ -95,6 +101,14 @@ class SettingsRepository(private val context: Context) {
             val next = decodeIdSet(prefs[archivedCredsKey]).toMutableSet()
             if (archived) next.add(id) else next.remove(id)
             prefs[archivedCredsKey] = encodeIdSet(next)
+        }
+    }
+
+    suspend fun setCredentialPinned(id: String, pinned: Boolean) {
+        context.dataStore.edit { prefs ->
+            val next = decodeIdSet(prefs[pinnedCredsKey]).toMutableSet()
+            if (pinned) next.add(id) else next.remove(id)
+            prefs[pinnedCredsKey] = encodeIdSet(next)
         }
     }
 

@@ -77,12 +77,33 @@ fun IssuerInboxScreen(viewModel: AppViewModel) {
             ui.error?.let { Text(it, color = KrydoColors.Error, fontSize = 13.sp) }
             ui.successMessage?.let { Text(it, color = KrydoColors.Success, fontSize = 13.sp) }
 
-            if (pending.isEmpty()) {
+            if (ui.loading && inbox.isEmpty()) {
                 Text(
-                    text = "No pending requests for this issuer wallet.",
+                    text = "Loading inbox…",
                     color = KrydoColors.TextMuted,
                     fontSize = 13.sp,
                 )
+            } else if (pending.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(KrydoColors.CardSurface, CardShape)
+                        .border(1.dp, KrydoColors.BorderSubtle, CardShape)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "Inbox clear",
+                        color = KrydoColors.TextPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp,
+                    )
+                    Text(
+                        text = "No pending holder requests for this issuer wallet. Pull down to refresh.",
+                        color = KrydoColors.TextMuted,
+                        fontSize = 13.sp,
+                    )
+                }
             }
 
             pending.forEach { req ->
@@ -175,6 +196,13 @@ private fun IssuerRequestCard(
                 },
                 enabled = !acting && summary.isNotBlank() && value.isNotBlank(),
                 modifier = Modifier.weight(1f),
+            )
+        }
+        if (value.isBlank() || summary.isBlank()) {
+            Text(
+                text = "Enter claim summary and value to enable Issue.",
+                color = KrydoColors.TextMuted,
+                fontSize = 12.sp,
             )
         }
         Spacer(modifier = Modifier.height(2.dp))

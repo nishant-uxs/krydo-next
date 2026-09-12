@@ -197,10 +197,7 @@ fun ProveScreen(
             }
             KrydoPrimaryButton(
                 text = "Present / Verify",
-                onClick = {
-                    viewModel.verifyPresentation()
-                    onShowResult()
-                },
+                onClick = onShowResult,
                 enabled = !state.loading,
                 showArrow = true,
             )

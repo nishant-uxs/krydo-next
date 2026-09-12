@@ -16,7 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.QrCodeScanner
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Shield
@@ -44,6 +44,7 @@ import dev.krydo.mobile.ui.components.KrydoSecondaryButton
 import dev.krydo.mobile.ui.components.KrydoWordmark
 import dev.krydo.mobile.ui.components.SectionHeader
 import dev.krydo.mobile.ui.components.StatusPill
+import dev.krydo.mobile.ui.theme.CardShape
 import dev.krydo.mobile.ui.theme.KrydoColors
 
 @Composable
@@ -60,6 +61,7 @@ fun HomeScreen(
     onOpenInbox: () -> Unit = {},
 ) {
     val credentials by viewModel.activeCredentials.collectAsStateWithLifecycle()
+    val pinnedIds by viewModel.pinnedCredentialIds.collectAsStateWithLifecycle()
     val requests by viewModel.credentialRequests.collectAsStateWithLifecycle()
     val proofs by viewModel.zkProofs.collectAsStateWithLifecycle()
     val inbox by viewModel.issuerInbox.collectAsStateWithLifecycle()
@@ -69,6 +71,10 @@ fun HomeScreen(
             it.status.equals("issued", true) ||
             it.status.equals("verified", true)
     }
+    val previewCredentials = (
+        credentials.filter { it.id in pinnedIds } +
+            credentials.filter { it.id !in pinnedIds }
+        ).take(3)
 
     LaunchedEffect(authed) {
         if (authed) {
@@ -119,7 +125,7 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Notifications,
+                            imageVector = Icons.Outlined.Settings,
                             contentDescription = "Settings",
                             tint = KrydoColors.TextSecondary,
                         )
@@ -134,7 +140,7 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 StatusPill(
-                    text = if (authed) "Identity core ready" else "Connect wallet in Settings",
+                    text = if (authed) "Wallet connected" else "Connect wallet to continue",
                     dotColor = if (authed) KrydoColors.Success else KrydoColors.Warning,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -153,7 +159,7 @@ fun HomeScreen(
                     text = if (authed) {
                         "Holder ${settings.holderAddress.take(6)}…${settings.holderAddress.takeLast(4)}"
                     } else {
-                        "Paste SIWS JWT in Settings to sync"
+                        "Use Connect Wallet on the login screen"
                     },
                     color = KrydoColors.Cyan.copy(alpha = 0.85f),
                     fontSize = 12.sp,
@@ -166,6 +172,35 @@ fun HomeScreen(
                         fontSize = 11.sp,
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Quick path tip for first-time / empty wallets
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(KrydoColors.CardSurface, CardShape)
+                    .clickable(onClick = if (credentials.isEmpty()) onOpenRequest else onOpenZk)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = if (credentials.isEmpty()) "Getting started" else "Next step",
+                    color = KrydoColors.Cyan.copy(alpha = 0.95f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.6.sp,
+                )
+                Text(
+                    text = when {
+                        credentials.isEmpty() -> "1) Request a credential → 2) Prove / Scan → 3) Share a ZK proof"
+                        proofs.isEmpty() -> "You have credentials — generate a ZK proof to share privately"
+                        else -> "Scan a verifier QR or open Prove to present a credential"
+                    },
+                    color = KrydoColors.TextSecondary,
+                    fontSize = 13.sp,
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -254,9 +289,10 @@ fun HomeScreen(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    credentials.take(3).forEach { cred ->
+                    previewCredentials.forEach { cred ->
                         CredentialCard(
                             credential = cred,
+                            pinned = cred.id in pinnedIds,
                             onClick = { onOpenCredential(cred.id) },
                         )
                     }
@@ -267,26 +303,56 @@ fun HomeScreen(
             SectionHeader(
                 title = "Recent Activity",
                 trailing = {
-                    Text(text = "Today", color = KrydoColors.TextMuted, fontSize = 12.sp)
+                    Text(text = "Synced", color = KrydoColors.TextMuted, fontSize = 12.sp)
                 },
             )
             ActivityRow(
-                title = if (authed) "Identity core synchronized" else "Waiting for wallet link",
+                title = if (authed) "Wallet session active" else "Waiting for wallet link",
                 subtitle = if (authed) {
                     settings.apiBaseUrl.removePrefix("https://")
                 } else {
-                    "Settings → paste JWT"
+                    "Login → Connect Wallet"
                 },
                 time = "—",
                 iconTint = if (authed) KrydoColors.Success else KrydoColors.Warning,
             )
-            if (credentials.isNotEmpty()) {
+            val pendingReqs = requests.count { it.status.equals("pending", true) }
+            if (pendingReqs > 0) {
                 ActivityRow(
-                    title = "${credentials.first().title} ready",
-                    subtitle = credentials.first().claimType,
+                    title = "$pendingReqs credential request${if (pendingReqs == 1) "" else "s"} pending",
+                    subtitle = "Waiting on issuer approval",
                     time = "now",
+                    iconTint = KrydoColors.Warning,
+                )
+            }
+            if (proofs.isNotEmpty()) {
+                val latest = proofs.first()
+                ActivityRow(
+                    title = "ZK proof ready",
+                    subtitle = latest.proofType.replace('_', ' '),
+                    time = "recent",
                     iconTint = KrydoColors.ElectricBlue,
                 )
+            }
+            if (credentials.isNotEmpty()) {
+                val latestCred = credentials.maxByOrNull { it.issuedAt } ?: credentials.first()
+                ActivityRow(
+                    title = "${latestCred.title} available",
+                    subtitle = latestCred.claimType.replace('_', ' '),
+                    time = latestCred.issuedAt.take(10).ifBlank { "—" },
+                    iconTint = KrydoColors.Success,
+                )
+            }
+            if (settings.isIssuerOrRoot) {
+                val pendingInbox = inbox.count { it.status.equals("pending", true) }
+                if (pendingInbox > 0) {
+                    ActivityRow(
+                        title = "$pendingInbox inbox request${if (pendingInbox == 1) "" else "s"}",
+                        subtitle = "Tap Inbox to approve or reject",
+                        time = "now",
+                        iconTint = KrydoColors.Cyan,
+                    )
+                }
             }
         }
     }

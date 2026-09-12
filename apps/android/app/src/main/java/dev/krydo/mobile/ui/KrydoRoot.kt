@@ -136,6 +136,10 @@ fun KrydoRoot(
                         viewModel = viewModel,
                         onOpen = { id -> navController.navigate("credential/$id") },
                         onOpenRequest = { navController.navigate("request") },
+                        onOpenZk = { id ->
+                            viewModel.preferZkCredential(id)
+                            navController.navigate("zk")
+                        },
                     )
                 }
                 composable(
@@ -144,13 +148,25 @@ fun KrydoRoot(
                 ) { entry ->
                     val id = entry.arguments?.getString("id").orEmpty()
                     val archivedIds by viewModel.archivedCredentialIds.collectAsStateWithLifecycle()
+                    val pinnedIds by viewModel.pinnedCredentialIds.collectAsStateWithLifecycle()
                     val archived = id in archivedIds
+                    val pinned = id in pinnedIds
                     CredentialDetailScreen(
                         credential = viewModel.credential(id),
                         archived = archived,
+                        pinned = pinned,
                         onArchiveToggle = {
                             if (archived) viewModel.unarchiveCredential(id)
                             else viewModel.archiveCredential(id)
+                        },
+                        onPinToggle = {
+                            if (pinned) viewModel.unpinCredential(id)
+                            else viewModel.pinCredential(id)
+                        },
+                        onProve = { navController.navigate("prove") },
+                        onZkProof = {
+                            viewModel.preferZkCredential(id)
+                            navController.navigate("zk")
                         },
                         onBack = { navController.popBackStack() },
                     )
@@ -177,7 +193,10 @@ fun KrydoRoot(
                     )
                 }
                 composable("settings") {
-                    SettingsScreen(viewModel = viewModel)
+                    SettingsScreen(
+                        viewModel = viewModel,
+                        onBack = { navController.popBackStack() },
+                    )
                 }
                 composable("result") {
                     ResultScreen(

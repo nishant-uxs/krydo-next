@@ -13,10 +13,13 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.mlkit.vision.MlKitAnalyzer
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -96,13 +99,23 @@ fun CameraPreview(
         contentAlignment = Alignment.Center,
     ) {
         if (!enabled) {
-            Text(
-                "Camera off",
-                color = Color.White.copy(alpha = 0.7f),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            return
-        }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(16.dp),
+            ) {
+                Text(
+                    "Camera idle",
+                    color = Color.White.copy(alpha = 0.75f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "Enable to scan a verifier QR",
+                    color = Color.White.copy(alpha = 0.45f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        } else {
 
         val previewView = remember {
             PreviewView(context).apply {
@@ -184,5 +197,6 @@ fun CameraPreview(
         bindError?.let {
             Text(it, color = MaterialTheme.colorScheme.error)
         }
+        } // else enabled
     }
 }

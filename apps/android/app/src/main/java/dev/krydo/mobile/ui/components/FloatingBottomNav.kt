@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.krydo.mobile.ui.theme.FloatingNavShape
@@ -40,10 +42,12 @@ fun FloatingBottomNav(
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val compact = items.size >= 5
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -54,7 +58,7 @@ fun FloatingBottomNav(
                 .clip(FloatingNavShape)
                 .background(KrydoColors.BackgroundSecondary.copy(alpha = 0.96f))
                 .border(1.dp, KrydoColors.BorderSubtle, FloatingNavShape)
-                .padding(horizontal = 10.dp),
+                .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -70,19 +74,22 @@ fun FloatingBottomNav(
                             interactionSource = remember { MutableInteractionSource() },
                             onClick = { onNavigate(item.route) },
                         )
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 6.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(if (selected) 36.dp else 28.dp)
+                                .size(if (selected) 34.dp else 28.dp)
                                 .then(
                                     if (selected) {
-                                        Modifier.background(KrydoColors.ElectricBlue.copy(alpha = 0.16f), CircleShape)
+                                        Modifier.background(
+                                            KrydoColors.ElectricBlue.copy(alpha = 0.16f),
+                                            CircleShape,
+                                        )
                                     } else {
                                         Modifier
                                     },
@@ -93,17 +100,21 @@ fun FloatingBottomNav(
                                 imageVector = item.icon,
                                 contentDescription = item.label,
                                 tint = tint,
-                                modifier = Modifier.size(22.dp),
+                                modifier = Modifier.size(if (compact) 20.dp else 22.dp),
                             )
                         }
-                        if (selected) {
-                            Text(
-                                text = item.label,
-                                color = tint,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
+                        Text(
+                            text = if (compact && item.label.length > 6) {
+                                item.label.take(5) + "…"
+                            } else {
+                                item.label
+                            },
+                            color = tint,
+                            fontSize = if (compact) 9.sp else 10.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }

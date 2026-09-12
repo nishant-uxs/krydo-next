@@ -7,7 +7,7 @@ import { getAuthToken } from "@/lib/auth-token";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { 
+import {
   Shield, 
   Lock, 
   Eye, 
@@ -31,7 +31,9 @@ import {
   Activity,
   BadgeCheck,
   Building,
-  CheckSquare
+  CheckSquare,
+  Download,
+  Smartphone,
 } from "lucide-react";
 import { SiStellar } from "react-icons/si";
 import { motion, AnimatePresence } from "framer-motion";
@@ -47,6 +49,70 @@ const fadeUp = {
 const stagger = {
   animate: { transition: { staggerChildren: 0.12 } },
 };
+
+function MobileAppHintBanner() {
+  const [visible, setVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("krydo_hide_app_hint") === "1") {
+        setDismissed(true);
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
+    const ua = navigator.userAgent || "";
+    const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+    setVisible(mobile);
+  }, []);
+
+  if (!visible || dismissed) return null;
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-[9990] p-3 sm:p-4 pointer-events-none sm:pointer-events-auto">
+      <div className="mx-auto max-w-md rounded-2xl border border-primary/30 bg-background/95 backdrop-blur-xl p-3.5 shadow-2xl pointer-events-auto flex items-start gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 border border-primary/25">
+          <Fingerprint className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground">Using Krydo on phone?</p>
+          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+            Download the Android APK for Scan, Prove, and ZK share.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              className="rounded-full h-8 text-xs"
+              onClick={() => {
+                window.location.assign("/download");
+              }}
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              Get APK
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-full h-8 text-xs text-muted-foreground"
+              onClick={() => {
+                setDismissed(true);
+                try {
+                  sessionStorage.setItem("krydo_hide_app_hint", "1");
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Landing() {
   const { isConnected, isConnecting, address } = useWallet();
@@ -194,6 +260,10 @@ export default function Landing() {
           </div>
         </div>
       )}
+
+      {!mobileReturn && (
+        <MobileAppHintBanner />
+      )}
       
       {/* DYNAMIC BACKGROUND SPOTLIGHT LIGHT EFFECT */}
       <div 
@@ -248,6 +318,23 @@ export default function Landing() {
           </button>
           <div className="flex items-center gap-3">
             <ThemeToggle />
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/download")}
+              className="hidden sm:inline-flex rounded-full text-muted-foreground hover:text-foreground"
+              data-testid="button-header-download"
+            >
+              <Smartphone className="w-4 h-4 mr-1.5" />
+              App
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => navigate("/verify")}
+              className="hidden sm:inline-flex rounded-full text-muted-foreground hover:text-foreground"
+              data-testid="button-header-verify"
+            >
+              Verify
+            </Button>
             <Button 
               onClick={handleConnectClick} 
               disabled={isConnecting} 
@@ -296,10 +383,31 @@ export default function Landing() {
                 className="text-lg md:text-xl text-muted-foreground leading-relaxed font-sans max-w-2xl"
                 variants={fadeUp}
               >
-                Krydo is a privacy-preserving trust infrastructure. 
-                Institutions issue verifiable credentials, while users generate instant zero-knowledge proofs locally. 
-                Keep your assets secret, prove you qualify in milliseconds.
+                Krydo is privacy-preserving financial trust infrastructure on Stellar.
+                Issuers mint verifiable credentials; holders share sigma-protocol ZK proofs —
+                verifiers see the statement, never the raw claim value.
               </motion.p>
+
+              <motion.div
+                className="flex flex-wrap gap-2"
+                variants={fadeUp}
+              >
+                {[
+                  { n: "1", t: "Connect wallet" },
+                  { n: "2", t: "Get a credential" },
+                  { n: "3", t: "Prove or share ZK" },
+                ].map((step) => (
+                  <span
+                    key={step.n}
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-muted-foreground backdrop-blur-md"
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
+                      {step.n}
+                    </span>
+                    {step.t}
+                  </span>
+                ))}
+              </motion.div>
               
               <motion.div className="flex flex-wrap items-center gap-4" variants={fadeUp}>
                 <Button 
@@ -316,12 +424,22 @@ export default function Landing() {
                 <Button 
                   size="lg" 
                   variant="outline" 
-                  onClick={() => navigate("/verify")} 
-                  data-testid="button-cta-verify"
+                  onClick={() => navigate("/download")} 
+                  data-testid="button-cta-download"
                   className="rounded-full border-white/10 bg-white/5 hover:bg-white/10 text-foreground transition-all duration-300 px-7 py-6 text-base backdrop-blur-3xl"
                 >
-                  <Eye className="w-4.5 h-4.5 mr-2 text-muted-foreground" />
-                  Verify a Credential
+                  <Download className="w-4.5 h-4.5 mr-2 text-muted-foreground" />
+                  Download Android APK
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="ghost" 
+                  onClick={() => navigate("/verify")} 
+                  data-testid="button-cta-verify"
+                  className="rounded-full text-muted-foreground hover:text-foreground px-5 py-6 text-base"
+                >
+                  <Eye className="w-4.5 h-4.5 mr-2" />
+                  Verify
                 </Button>
               </motion.div>
             </motion.div>
