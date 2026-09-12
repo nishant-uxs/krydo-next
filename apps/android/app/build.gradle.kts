@@ -13,11 +13,14 @@ android {
         applicationId = "dev.krydo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.7.0-multichain"
+        versionCode = 12
+        versionName = "0.12.0-one-tap-freighter"
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://krydo.onrender.com\"")
-        // Set via local.properties reown.projectId=... or leave empty to disable EVM AppKit.
-        buildConfigField("String", "REOWN_PROJECT_ID", "\"${project.findProperty("reown.projectId") ?: ""}\"")
+        buildConfigField("String", "WEB_APP_URL", "\"https://krydo-next.vercel.app\"")
+        // Prefer local.properties reown.projectId=... ; fallback keeps Freighter WC usable for demos.
+        val reownId = (project.findProperty("reown.projectId") as String?)?.trim().orEmpty()
+            .ifBlank { "3a8170812b534d0ff9d794f19a901d64" }
+        buildConfigField("String", "REOWN_PROJECT_ID", "\"$reownId\"")
         manifestPlaceholders["reownRedirect"] = "krydo://wc"
     }
 
@@ -79,10 +82,14 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    // Reown AppKit (EVM / WalletConnect)
+    // Reown AppKit (EVM) + Sign (Stellar / Freighter WalletConnect)
     implementation(platform("com.reown:android-bom:1.4.11"))
     implementation("com.reown:android-core")
     implementation("com.reown:appkit")
+    implementation("com.reown:sign")
+
+    // Custom Tabs — Freighter Mobile connect via Krydo web WalletConnect flow
+    implementation("androidx.browser:browser:1.8.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

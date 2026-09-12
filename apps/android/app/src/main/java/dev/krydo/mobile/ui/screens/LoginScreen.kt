@@ -54,11 +54,17 @@ import dev.krydo.mobile.ui.components.StatusPill
 import dev.krydo.mobile.ui.theme.CardShape
 import dev.krydo.mobile.ui.theme.KrydoColors
 import dev.krydo.mobile.ui.theme.PillShape
+import dev.krydo.mobile.wallet.FreighterConnectActivity
+import dev.krydo.mobile.wallet.KnownWallet
 import dev.krydo.mobile.wallet.KrydoEvmConnectActivity
+import dev.krydo.mobile.wallet.WalletDetector
+import dev.krydo.mobile.wallet.WalletRail
+import dev.krydo.mobile.wallet.WebConnectLauncher
 
 private enum class LoginStep {
     Onboarding,
     Wallets,
+    WaitingFreighter,
     StellarRestore,
 }
 
@@ -129,9 +135,28 @@ fun LoginScreen(viewModel: AppViewModel) {
                 LoginStep.Wallets -> WalletPickerStep(
                     onBack = { step = LoginStep.Onboarding },
                     onStellar = { step = LoginStep.StellarRestore },
-                    onEvm = {
-                        context.startActivity(Intent(context, KrydoEvmConnectActivity::class.java))
+                    onFreighterConnect = {
+                        context.startActivity(Intent(context, FreighterConnectActivity::class.java))
                     },
+                    onEvm = { wallet ->
+                        if (wallet != null) {
+                            WalletDetector.openWalletOrStore(context, wallet)
+                        }
+                        val intent = Intent(context, KrydoEvmConnectActivity::class.java)
+                        if (wallet != null) {
+                            intent.putExtra(KrydoEvmConnectActivity.EXTRA_WALLET_ID, wallet.id)
+                            intent.putExtra(KrydoEvmConnectActivity.EXTRA_WALLET_PACKAGE, wallet.packageName)
+                            intent.putExtra(KrydoEvmConnectActivity.EXTRA_WALLET_NAME, wallet.displayName)
+                        }
+                        context.startActivity(intent)
+                    },
+                )
+                LoginStep.WaitingFreighter -> WaitingFreighterStep(
+                    onRetry = {
+                        context.startActivity(Intent(context, FreighterConnectActivity::class.java))
+                    },
+                    onManual = { step = LoginStep.StellarRestore },
+                    onBack = { step = LoginStep.Wallets },
                 )
                 LoginStep.StellarRestore -> StellarRestoreStep(
                     uiHolder = ui.holderDraft,
@@ -244,8 +269,14 @@ private fun OnboardingStep(
 private fun WalletPickerStep(
     onBack: () -> Unit,
     onStellar: () -> Unit,
-    onEvm: () -> Unit,
+    onFreighterConnect: () -> Unit,
+    onEvm: (KnownWallet?) -> Unit,
 ) {
+    val context = LocalContext.current
+    val detected = remember(context) { WalletDetector.scan(context) }
+    val installed = detected.filter { it.installed }
+    val notInstalled = detected.filter { !it.installed && it.wallet.packageName.isNotBlank() }
+
     Spacer(modifier = Modifier.height(24.dp))
     Text(
         text = "Connect wallet",
@@ -255,39 +286,95 @@ private fun WalletPickerStep(
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-        text = "Mobile-supported wallets. Same Render backend as the website.",
+        text = if (installed.isNotEmpty()) {
+            "Found ${installed.size} wallet(s) on this phone. Tap one — the wallet will show a connection popup."
+        } else {
+            "No known wallets detected. Install MetaMask / Rainbow / Freighter, or restore a Stellar session."
+        },
         color = KrydoColors.TextMuted,
         fontSize = 14.sp,
         lineHeight = 20.sp,
     )
-    Spacer(modifier = Modifier.height(24.dp))
 
+    if (installed.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            text = "INSTALLED ON THIS PHONE",
+            color = KrydoColors.Success,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        installed.forEach { item ->
+            WalletOptionCard(
+                title = item.wallet.displayName,
+                subtitle = item.wallet.subtitle,
+                badge = "INSTALLED",
+                badgeColor = KrydoColors.Success,
+                onClick = {
+                    when (item.wallet.rail) {
+                        WalletRail.EVM -> onEvm(item.wallet)
+                        WalletRail.STELLAR -> {
+                            if (item.wallet.id.startsWith("freighter")) {
+                                onFreighterConnect()
+                            } else {
+                                WalletDetector.openWalletOrStore(context, item.wallet)
+                                onStellar()
+                            }
+                        }
+                    }
+                },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
     Text(
-        text = "STELLAR",
+        text = "OTHER OPTIONS",
         color = KrydoColors.Cyan,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
     )
     Spacer(modifier = Modifier.height(10.dp))
     WalletOptionCard(
-        title = "Freighter / Lobstr / xBull",
-        subtitle = "SIWS session from web → paste G… + JWT",
+        title = "Freighter",
+        subtitle = "One Approve in Freighter — no sign message",
+        onClick = onFreighterConnect,
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    WalletOptionCard(
+        title = "WalletConnect (any EVM)",
+        subtitle = "Open AppKit — QR / listed wallets",
+        onClick = { onEvm(null) },
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    WalletOptionCard(
+        title = "Restore Stellar session",
+        subtitle = "Manual fallback — paste G… + JWT",
         onClick = onStellar,
     )
 
-    Spacer(modifier = Modifier.height(20.dp))
-    Text(
-        text = "EVM (WalletConnect)",
-        color = KrydoColors.Cyan,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-    )
-    Spacer(modifier = Modifier.height(10.dp))
-    WalletOptionCard(
-        title = "MetaMask · Rainbow · Coinbase",
-        subtitle = "Reown AppKit + SIWE · Eth / Polygon / Base / …",
-        onClick = onEvm,
-    )
+    if (notInstalled.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "NOT INSTALLED — TAP TO GET",
+            color = KrydoColors.TextMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        notInstalled.take(4).forEach { item ->
+            WalletOptionCard(
+                title = item.wallet.displayName,
+                subtitle = "Install from Play Store",
+                badge = "GET",
+                badgeColor = KrydoColors.BrightBlue,
+                onClick = { WalletDetector.openWalletOrStore(context, item.wallet) },
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+    }
 
     Spacer(modifier = Modifier.height(24.dp))
     KrydoSecondaryButton(text = "Back", onClick = onBack)
@@ -299,6 +386,8 @@ private fun WalletOptionCard(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
+    badge: String? = null,
+    badgeColor: androidx.compose.ui.graphics.Color = KrydoColors.Cyan,
 ) {
     Row(
         modifier = Modifier
@@ -325,12 +414,23 @@ private fun WalletOptionCard(
         }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = KrydoColors.TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    color = KrydoColors.TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (badge != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = badge,
+                        color = badgeColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
             Text(
                 text = subtitle,
                 color = KrydoColors.TextMuted,
@@ -339,6 +439,37 @@ private fun WalletOptionCard(
             )
         }
     }
+}
+
+@Composable
+private fun WaitingFreighterStep(
+    onRetry: () -> Unit,
+    onManual: () -> Unit,
+    onBack: () -> Unit,
+) {
+    Spacer(modifier = Modifier.height(28.dp))
+    Text(
+        text = "Approve in Freighter",
+        color = KrydoColors.TextPrimary,
+        fontSize = 26.sp,
+        fontWeight = FontWeight.Bold,
+    )
+    Spacer(modifier = Modifier.height(10.dp))
+    Text(
+        text = "1) Freighter app khul gaya — wahan unlock / ready rakho\n" +
+            "2) Krydo pe wapas aake session complete karo\n" +
+            "3) Website ab auto nahi khulegi",
+        color = KrydoColors.TextMuted,
+        fontSize = 14.sp,
+        lineHeight = 22.sp,
+    )
+    Spacer(modifier = Modifier.height(28.dp))
+    KrydoPrimaryButton(text = "Open Freighter again", onClick = onRetry, showArrow = true)
+    Spacer(modifier = Modifier.height(12.dp))
+    KrydoSecondaryButton(text = "Complete with G… + JWT", onClick = onManual)
+    Spacer(modifier = Modifier.height(10.dp))
+    KrydoSecondaryButton(text = "Back", onClick = onBack)
+    Spacer(modifier = Modifier.height(24.dp))
 }
 
 @Composable
@@ -362,7 +493,7 @@ private fun StellarRestoreStep(
     )
     Spacer(modifier = Modifier.height(8.dp))
     Text(
-        text = "Sign in on the Krydo website (Freighter), then paste your G… address and JWT here. Talks to ${BuildConfig.DEFAULT_API_BASE_URL}.",
+        text = "Manual fallback only. Prefer Freighter from Connect wallet — it returns automatically after approve + sign.",
         color = KrydoColors.TextMuted,
         fontSize = 13.sp,
         lineHeight = 18.sp,

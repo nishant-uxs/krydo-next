@@ -32,6 +32,47 @@ const verifySchema = z.object({
   signature: z.string().min(16).max(1_024),
 });
 
+const wcSessionSchema = z.object({
+  address: stellarAddressSchema,
+  chainId: z.string().min(3).max(64).optional(),
+  topic: z.string().min(8).max(128).optional(),
+  provider: z.literal("freighter-wc").default("freighter-wc"),
+});
+
+async function resolveRoleAndIssueSession(address: string) {
+  const deployerAddr = getDeployment()?.deployer || DEPLOYMENT.deployer || "";
+  let role: WalletRole = "user";
+  let label = "User";
+
+  if (deployerAddr && address === deployerAddr) {
+    role = "root";
+    label = "Root Authority";
+  } else {
+    const issuer = await storage.getIssuerByAddress(address);
+    if (issuer && issuer.active) {
+      role = "issuer";
+      label = issuer.name;
+    } else if (isBlockchainReady()) {
+      try {
+        if (await isIssuerOnChain(address)) {
+          role = "issuer";
+          label = "Trusted Issuer";
+        }
+      } catch {
+        /* fall through to user */
+      }
+    }
+  }
+
+  const previous = await storage.getWallet(address);
+  const wallet = await storage.connectWallet(address, role, label);
+  const roleChanged = !previous || previous.role !== role;
+  const neverAnchored = !previous || !previous.onChainTxHash;
+  const needsRoleAnchor = !!(AUDIT_ID && (roleChanged || neverAnchored));
+  const token = signAuthToken({ sub: address, role, chain: "stellar" });
+  return { token, wallet, needsRoleAnchor };
+}
+
 export function registerAuthRoutes(app: Express) {
   /** GET /api/auth/nonce?address=G... — returns a server-issued nonce to sign. */
   app.get("/api/auth/nonce", sensitiveLimiter, async (req: Request, res: Response) => {
@@ -44,6 +85,29 @@ export function registerAuthRoutes(app: Express) {
         return res.status(400).json({ message: err.issues[0].message });
       }
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  /**
+   * POST /api/auth/wc-session — Freighter WalletConnect one-tap login.
+   * After the user Approves the WC session in Freighter, the mobile app sends
+   * the revealed G… address. No second SEP-53 sign popup.
+   */
+  app.post("/api/auth/wc-session", sensitiveLimiter, async (req: Request, res: Response) => {
+    try {
+      const { address, chainId } = wcSessionSchema.parse(req.body);
+      if (chainId && !chainId.startsWith("stellar:")) {
+        return res.status(400).json({ message: "chainId must be a stellar CAIP-2 id" });
+      }
+      const session = await resolveRoleAndIssueSession(address);
+      log.info({ address, chainId, provider: "freighter-wc" }, "wc-session login");
+      res.json(session);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ message: err.issues[0].message });
+      }
+      log.error({ err }, "wc-session failed");
+      res.status(401).json({ message: err.message || "WalletConnect session login failed" });
     }
   });
 
@@ -74,47 +138,8 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ message: "Invalid or expired nonce" });
       }
 
-      // Detect role. Stellar addresses are case-sensitive, so we compare exact.
-      // Prefer live deployment handle; fall back to baked-in deployment.json so
-      // root still resolves when the server runs without DEPLOYER_SECRET.
-      const deployerAddr = getDeployment()?.deployer || DEPLOYMENT.deployer || "";
-      let role: WalletRole = "user";
-      let label = "User";
-
-      if (deployerAddr && address === deployerAddr) {
-        role = "root";
-        label = "Root Authority";
-      } else {
-        const issuer = await storage.getIssuerByAddress(address);
-        if (issuer && issuer.active) {
-          role = "issuer";
-          label = issuer.name;
-        } else if (isBlockchainReady()) {
-          try {
-            if (await isIssuerOnChain(address)) {
-              role = "issuer";
-              label = "Trusted Issuer";
-            }
-          } catch {
-            /* fall through to user */
-          }
-        }
-      }
-
-      // Snapshot the previous state BEFORE connectWallet mutates it so we can
-      // tell whether this is a first-time connect, a role change, or a repeat
-      // sign-in with the same role.
-      const previous = await storage.getWallet(address);
-      const wallet = await storage.connectWallet(address, role, label);
-
-      // Client must wallet-sign the role audit anchor (popup → Freighter/etc).
-      // Server never signs this with DEPLOYER_SECRET.
-      const roleChanged = !previous || previous.role !== role;
-      const neverAnchored = !previous || !previous.onChainTxHash;
-      const needsRoleAnchor = !!(AUDIT_ID && (roleChanged || neverAnchored));
-
-      const token = signAuthToken({ sub: address, role, chain: "stellar" });
-      res.json({ token, wallet, needsRoleAnchor });
+      const session = await resolveRoleAndIssueSession(address);
+      res.json(session);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.issues[0].message });

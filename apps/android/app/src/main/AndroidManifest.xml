@@ -7,6 +7,46 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
+    <!-- Android 11+: allow detecting installed wallets without QUERY_ALL_PACKAGES -->
+    <queries>
+        <package android:name="io.metamask" />
+        <package android:name="me.rainbow" />
+        <package android:name="org.toshi" />
+        <package android:name="com.wallet.crypto.trustapp" />
+        <package android:name="com.lobstr.client" />
+        <package android:name="network.solar.android" />
+        <package android:name="org.stellar.freighterwallet" />
+        <package android:name="org.stellar.freighterdev" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="wc" />
+        </intent>
+            <intent>
+                <action android:name="android.intent.action.VIEW" />
+                <data android:scheme="freighterwallet" />
+            </intent>
+            <intent>
+                <action android:name="android.intent.action.VIEW" />
+                <data android:scheme="freighter" />
+            </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="metamask" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="rainbow" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="cbwallet" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="trust" />
+        </intent>
+    </queries>
+
     <application
         android:name=".KrydoApplication"
         android:allowBackup="false"
@@ -17,6 +57,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Krydo"
         android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".wallet.FreighterConnectActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Krydo" />
 
         <activity
             android:name=".wallet.KrydoEvmConnectActivity"
@@ -38,6 +83,12 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="krydo" android:host="present" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="krydo" android:host="auth" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
