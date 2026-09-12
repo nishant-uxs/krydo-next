@@ -34,6 +34,7 @@ import { TxConfirmDialog, type TxConfirmInfo } from "@/components/tx-confirm-dia
 import { anchorRoleViaWallet } from "./contracts";
 import type { WalletAccount } from "@shared/wallet";
 import { stellarCaip2 } from "@shared/wallet";
+import { returnToKrydoMobileApp, wantsMobileReturn } from "./mobile-return";
 
 const STORAGE_KEY = "krydo_wallet";
 const ACCOUNTS_KEY = "krydo_wallet_accounts";
@@ -59,9 +60,14 @@ interface WalletContextType {
   walletId: string | null;
   /** Linked accounts shell (Stellar + EVM). No silent identity merge. */
   accounts: WalletAccount[];
-  /** Stellar SIWS connect (alias of connect). */
+  /** Stellar SIWS connect — opens multi-wallet kit modal. */
   connect: () => Promise<void>;
   connectStellar: () => Promise<void>;
+  /**
+   * Connect a specific Stellar kit module (e.g. "freighter", "lobstr", "wallet_connect").
+   * Triggers that wallet's own connection popup (Freighter requestAccess / WC deep link).
+   */
+  connectStellarWallet: (walletId: string) => Promise<void>;
   /** Opens Reown AppKit; SIWE sign-in is completed via WalletButton. */
   connectEvm: () => void;
   /** Disconnect active session, or remove one linked account when provided. */
@@ -98,6 +104,7 @@ const WalletContext = createContext<WalletContextType>({
   accounts: [],
   connect: async () => {},
   connectStellar: async () => {},
+  connectStellarWallet: async () => {},
   connectEvm: () => {},
   disconnect: () => {},
 });
@@ -317,6 +324,12 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         });
         queryClient.invalidateQueries({ queryKey: ["/api"] });
 
+        // Android Custom Tab / Freighter in-app browser: hand session back — no JWT paste.
+        if (wantsMobileReturn()) {
+          returnToKrydoMobileApp(wallet.address, token);
+          return;
+        }
+
         if (needsRoleAnchor) {
           pendingRoleAnchor.current = {
             address: wallet.address,
@@ -365,6 +378,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setIsConnecting(true);
     const kit = ensureWalletKit();
     try {
+      // Let any parent Dialog unmount first so the kit modal isn't trapped under it.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
       const { address: addr } = await kit.authModal();
       if (!addr) {
         throw new Error("No Stellar account selected. Pick a wallet and try again.");
@@ -389,6 +404,50 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setIsConnecting(false);
     }
   }, [runSiwsFlow, toast]);
+
+  /**
+   * Pick a specific kit module → wallet shows its own connect popup
+   * (Freighter extension dialog, Freighter Mobile WC deep-link, etc.).
+   */
+  const connectStellarWallet = useCallback(
+    async (walletId: string) => {
+      setIsConnecting(true);
+      const kit = ensureWalletKit();
+      try {
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        kit.setWallet(walletId);
+        rememberWalletId(walletId);
+        setWalletId(walletId);
+        const { address: addr } = await kit.getAddress();
+        if (!addr) {
+          throw new Error("No Stellar account returned. Approve the connection in your wallet.");
+        }
+        await runSiwsFlow(addr);
+      } catch (err) {
+        const msg = errMessage(err);
+        if (
+          msg.toLowerCase().includes("closed the modal") ||
+          msg.toLowerCase().includes("user rejected") ||
+          msg.toLowerCase().includes("rejected by user")
+        ) {
+          return;
+        }
+        // eslint-disable-next-line no-console
+        console.error("Wallet connect failed:", err);
+        toast({
+          title: walletId === "freighter" ? "Freighter connect failed" : "Connect failed",
+          description:
+            msg.includes("not connected") || msg.includes("not available")
+              ? "Install / unlock Freighter (Chrome extension) or use WalletConnect for Freighter Mobile, then try again."
+              : msg,
+          variant: "destructive",
+        });
+      } finally {
+        setIsConnecting(false);
+      }
+    },
+    [runSiwsFlow, toast],
+  );
 
   const connectEvm = useCallback(() => {
     if (!reownConfigured) {
@@ -502,6 +561,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         accounts,
         connect,
         connectStellar: connect,
+        connectStellarWallet,
         connectEvm,
         disconnect,
       }}

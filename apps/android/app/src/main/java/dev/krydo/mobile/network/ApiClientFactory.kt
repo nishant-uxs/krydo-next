@@ -13,6 +13,8 @@ class ApiClientFactory {
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
+        // Zod .optional() rejects JSON null — omit null fields instead.
+        explicitNulls = false
     }
 
     private val client: OkHttpClient = OkHttpClient.Builder()

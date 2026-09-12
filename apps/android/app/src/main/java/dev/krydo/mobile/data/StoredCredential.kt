@@ -1,5 +1,8 @@
 package dev.krydo.mobile.data
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class StoredCredential(
     val id: String,
     val title: String,
@@ -10,7 +13,9 @@ data class StoredCredential(
     val holderName: String,
     val status: String,
     val issuedAt: String,
-    val expiresAt: String?,
+    val expiresAt: String? = null,
     val credentialHash: String,
     val displaySummary: String,
+    val claimValue: String? = null,
+    val onChainTxHash: String? = null,
 )

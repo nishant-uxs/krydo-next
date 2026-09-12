@@ -30,6 +30,8 @@ export async function setupVite(server: Server, app: Express) {
       include: [
         "@creit.tech/stellar-wallets-kit",
         "@creit.tech/stellar-wallets-kit/modules/utils",
+        "@creit.tech/stellar-wallets-kit/modules/wallet-connect",
+        "@stellar/freighter-api",
         "buffer",
       ],
       esbuildOptions: {

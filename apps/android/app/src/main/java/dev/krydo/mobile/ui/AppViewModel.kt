@@ -7,8 +7,13 @@ import dev.krydo.mobile.data.AppContainer
 import dev.krydo.mobile.data.AppSettings
 import dev.krydo.mobile.data.StoredCredential
 import dev.krydo.mobile.domain.QrRequestParser
+import dev.krydo.mobile.network.CredentialRequestDto
+import dev.krydo.mobile.network.IssuerDto
 import dev.krydo.mobile.network.PresentationRequestDto
 import dev.krydo.mobile.network.PresentationVerifyResultDto
+import dev.krydo.mobile.network.ZkProofDto
+import dev.krydo.mobile.network.ZkShareLinks
+import dev.krydo.mobile.network.ZkVerifyResultDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,6 +49,36 @@ data class CredentialsUiState(
     val error: String? = null,
 )
 
+data class RequestUiState(
+    val loading: Boolean = false,
+    val submitting: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+)
+
+data class ZkUiState(
+    val loading: Boolean = false,
+    val generating: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+    val lastProof: ZkProofDto? = null,
+    val shareProofId: String? = null,
+)
+
+data class VerifierUiState(
+    val input: String = "",
+    val loading: Boolean = false,
+    val error: String? = null,
+    val result: ZkVerifyResultDto? = null,
+)
+
+data class IssuerUiState(
+    val loading: Boolean = false,
+    val acting: Boolean = false,
+    val error: String? = null,
+    val successMessage: String? = null,
+)
+
 class AppViewModel(
     private val container: AppContainer,
 ) : ViewModel() {
@@ -56,11 +91,25 @@ class AppViewModel(
                 holderAddress = "",
                 authToken = "",
                 onboardingDone = false,
+                walletRole = "user",
+                knownCredentialCount = 0,
             ),
         )
 
     val credentials: StateFlow<List<StoredCredential>> =
         container.credentialRepository.credentials
+
+    val issuers: StateFlow<List<IssuerDto>> =
+        container.issuerRequestRepository.issuers
+
+    val credentialRequests: StateFlow<List<CredentialRequestDto>> =
+        container.issuerRequestRepository.requests
+
+    val issuerInbox: StateFlow<List<CredentialRequestDto>> =
+        container.issuerRequestRepository.inbox
+
+    val zkProofs: StateFlow<List<ZkProofDto>> =
+        container.zkProofRepository.proofs
 
     private val _prove = MutableStateFlow(ProveUiState())
     val prove: StateFlow<ProveUiState> = _prove.asStateFlow()
@@ -70,6 +119,21 @@ class AppViewModel(
 
     private val _credentialsUi = MutableStateFlow(CredentialsUiState())
     val credentialsUi: StateFlow<CredentialsUiState> = _credentialsUi.asStateFlow()
+
+    private val _requestUi = MutableStateFlow(RequestUiState())
+    val requestUi: StateFlow<RequestUiState> = _requestUi.asStateFlow()
+
+    private val _zkUi = MutableStateFlow(ZkUiState())
+    val zkUi: StateFlow<ZkUiState> = _zkUi.asStateFlow()
+
+    private val _guestVerifier = MutableStateFlow(false)
+    val guestVerifier: StateFlow<Boolean> = _guestVerifier.asStateFlow()
+
+    private val _verifierUi = MutableStateFlow(VerifierUiState())
+    val verifierUi: StateFlow<VerifierUiState> = _verifierUi.asStateFlow()
+
+    private val _issuerUi = MutableStateFlow(IssuerUiState())
+    val issuerUi: StateFlow<IssuerUiState> = _issuerUi.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -81,6 +145,27 @@ class AppViewModel(
                         tokenDraft = ui.tokenDraft.ifBlank { s.authToken },
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            container.credentialRepository.loadOfflineCache()
+        }
+        // Poll for newly issued credentials while session is active.
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(45_000)
+                val s = container.settingsRepository.settings.first()
+                if (!s.hasSession) continue
+                val before = s.knownCredentialCount
+                val result = container.credentialRepository.refresh()
+                val count = result.getOrNull()?.size ?: continue
+                if (count > before) {
+                    container.issueNotifier.notifyIssued(
+                        title = "Credential issued",
+                        body = "You have $count credential(s). Open Krydo to review.",
+                    )
+                }
+                container.settingsRepository.setKnownCredentialCount(count)
             }
         }
     }
@@ -107,22 +192,62 @@ class AppViewModel(
                 }
                 return@launch
             }
-            container.settingsRepository.setApiBaseUrl(ui.urlDraft.ifBlank { "https://krydo.onrender.com" })
-            container.settingsRepository.setHolderAddress(ui.holderDraft)
-            container.settingsRepository.setAuthToken(ui.tokenDraft)
-            container.settingsRepository.setOnboardingDone(true)
-            container.walletSessionStore.upsert(
-                dev.krydo.mobile.wallet.WalletAccount(
-                    chainType = "STELLAR",
-                    chainId = dev.krydo.mobile.wallet.WalletChains.STELLAR_TESTNET,
-                    address = ui.holderDraft.trim(),
-                    walletProvider = "siws-web",
-                    label = "Stellar",
-                ),
+            applyStellarSession(
+                address = ui.holderDraft.trim(),
+                token = ui.tokenDraft.trim(),
+                provider = "siws-web",
             )
-            _settingsUi.update { it.copy(testMessage = "Stellar session saved", testOk = true) }
-            refreshCredentials()
         }
+    }
+
+    /**
+     * Deep-link from Freighter / Custom Tab after web SIWS:
+     * krydo://auth?address=G…&token=…
+     */
+    fun applyMobileAuthDeepLink(address: String, token: String) {
+        viewModelScope.launch {
+            if (!address.startsWith("G") || token.isBlank()) {
+                _settingsUi.update {
+                    it.copy(testMessage = "Invalid Freighter handoff", testOk = false)
+                }
+                return@launch
+            }
+            applyStellarSession(address = address.trim(), token = token.trim(), provider = "freighter-mobile")
+        }
+    }
+
+    private suspend fun applyStellarSession(address: String, token: String, provider: String) {
+        container.settingsRepository.setApiBaseUrl(
+            _settingsUi.value.urlDraft.ifBlank { "https://krydo.onrender.com" },
+        )
+        container.settingsRepository.setHolderAddress(address)
+        container.settingsRepository.setAuthToken(token)
+        container.settingsRepository.setWalletRole(
+            dev.krydo.mobile.util.JwtPeek.role(token) ?: "user",
+        )
+        container.settingsRepository.setOnboardingDone(true)
+        container.issueNotifier.ensureChannel()
+        container.walletSessionStore.upsert(
+            dev.krydo.mobile.wallet.WalletAccount(
+                chainType = "STELLAR",
+                chainId = dev.krydo.mobile.wallet.WalletChains.STELLAR_TESTNET,
+                address = address,
+                walletProvider = provider,
+                label = "Stellar",
+            ),
+        )
+        _settingsUi.update {
+            it.copy(
+                holderDraft = address,
+                tokenDraft = token,
+                testMessage = "Freighter connected",
+                testOk = true,
+            )
+        }
+        refreshCredentials()
+        refreshRequestFlow()
+        refreshZkProofs()
+        refreshIssuerInbox()
     }
 
     fun disconnectWallet(chainId: String, address: String) {
@@ -155,15 +280,159 @@ class AppViewModel(
         _prove.update { it.copy(input = value, error = null) }
     }
 
-    fun refreshCredentials() {
+    fun refreshRequestFlow() {
         viewModelScope.launch {
-            _credentialsUi.update { it.copy(loading = true, error = null) }
-            val result = container.credentialRepository.refresh()
-            _credentialsUi.update {
+            _requestUi.update { it.copy(loading = true, error = null) }
+            val issuersResult = container.issuerRequestRepository.refreshIssuers()
+            val requestsResult = container.issuerRequestRepository.refreshMyRequests()
+            val err = issuersResult.exceptionOrNull()?.message
+                ?: requestsResult.exceptionOrNull()?.message
+            _requestUi.update {
+                it.copy(loading = false, error = err)
+            }
+            // Issued credentials may have landed while we were waiting.
+            container.credentialRepository.refresh()
+        }
+    }
+
+    fun submitCredentialRequest(
+        claimType: String,
+        issuer: IssuerDto?,
+        message: String?,
+    ) {
+        viewModelScope.launch {
+            _requestUi.update {
+                it.copy(submitting = true, error = null, successMessage = null)
+            }
+            val result = container.issuerRequestRepository.requestCredential(
+                claimType = claimType,
+                issuer = issuer,
+                message = message,
+            )
+            _requestUi.update {
+                if (result.isSuccess) {
+                    it.copy(
+                        submitting = false,
+                        successMessage = "Request sent to ${issuer?.name ?: "issuer"}. They’ll issue on the web inbox.",
+                    )
+                } else {
+                    it.copy(
+                        submitting = false,
+                        error = result.exceptionOrNull()?.message ?: "Request failed",
+                    )
+                }
+            }
+        }
+    }
+
+    fun cancelCredentialRequest(id: String) {
+        viewModelScope.launch {
+            _requestUi.update { it.copy(error = null, successMessage = null) }
+            val result = container.issuerRequestRepository.cancelRequest(id)
+            if (result.isFailure) {
+                _requestUi.update {
+                    it.copy(error = result.exceptionOrNull()?.message ?: "Cancel failed")
+                }
+            } else {
+                _requestUi.update { it.copy(successMessage = "Request cancelled") }
+            }
+        }
+    }
+
+    fun refreshZkProofs() {
+        viewModelScope.launch {
+            _zkUi.update { it.copy(loading = true, error = null) }
+            val result = container.zkProofRepository.refresh()
+            _zkUi.update {
                 it.copy(
                     loading = false,
                     error = result.exceptionOrNull()?.message,
                 )
+            }
+        }
+    }
+
+    fun generateZkProof(
+        credentialId: String,
+        proofType: String,
+        threshold: Double?,
+        targetValue: String?,
+    ) {
+        viewModelScope.launch {
+            _zkUi.update {
+                it.copy(generating = true, error = null, successMessage = null)
+            }
+            val result = container.zkProofRepository.generate(
+                credentialId = credentialId,
+                proofType = proofType,
+                threshold = threshold,
+                targetValue = targetValue,
+            )
+            _zkUi.update {
+                if (result.isSuccess) {
+                    val proof = result.getOrThrow()
+                    it.copy(
+                        generating = false,
+                        lastProof = proof,
+                        shareProofId = proof.id,
+                        successMessage = if (proof.verified) {
+                            "ZK proof ready — share the QR / link with a verifier."
+                        } else {
+                            "Proof generated but claim does not satisfy the condition."
+                        },
+                    )
+                } else {
+                    it.copy(
+                        generating = false,
+                        error = result.exceptionOrNull()?.message ?: "Generate failed",
+                    )
+                }
+            }
+        }
+    }
+
+    fun openShareProof(proofId: String) {
+        _zkUi.update { it.copy(shareProofId = proofId) }
+    }
+
+    fun clearShareProof() {
+        _zkUi.update { it.copy(shareProofId = null) }
+    }
+
+    fun enterGuestVerifier() {
+        _guestVerifier.value = true
+        _verifierUi.value = VerifierUiState()
+    }
+
+    fun exitGuestVerifier() {
+        _guestVerifier.value = false
+        _verifierUi.value = VerifierUiState()
+    }
+
+    fun setVerifierInput(value: String) {
+        _verifierUi.update { it.copy(input = value, error = null, result = null) }
+    }
+
+    fun verifyZkFromInput() {
+        viewModelScope.launch {
+            val proofId = ZkShareLinks.parseProofId(_verifierUi.value.input)
+            if (proofId == null) {
+                _verifierUi.update {
+                    it.copy(error = "Paste a Krydo verify link or proof ID")
+                }
+                return@launch
+            }
+            _verifierUi.update { it.copy(loading = true, error = null, result = null) }
+            val result = container.zkProofRepository.verifyPublic(proofId)
+            _verifierUi.update {
+                if (result.isSuccess) {
+                    it.copy(loading = false, result = result.getOrThrow())
+                } else {
+                    it.copy(
+                        loading = false,
+                        error = result.exceptionOrNull()?.message ?: "Verify failed",
+                    )
+                }
             }
         }
     }
@@ -307,6 +576,75 @@ class AppViewModel(
         _prove.value.presentation?.let {
             Json { prettyPrint = true }.encodeToString(JsonElement.serializer(), it)
         }
+
+    fun refreshCredentials() {
+        viewModelScope.launch {
+            _credentialsUi.update { it.copy(loading = true, error = null) }
+            val result = container.credentialRepository.refresh()
+            result.getOrNull()?.let { list ->
+                container.settingsRepository.setKnownCredentialCount(list.size)
+            }
+            _credentialsUi.update {
+                it.copy(
+                    loading = false,
+                    error = result.exceptionOrNull()?.message,
+                )
+            }
+        }
+    }
+
+    fun refreshIssuerInbox() {
+        viewModelScope.launch {
+            val s = container.settingsRepository.settings.first()
+            if (!s.isIssuerOrRoot) return@launch
+            _issuerUi.update { it.copy(loading = true, error = null) }
+            val result = container.issuerRequestRepository.refreshIssuerInbox()
+            _issuerUi.update {
+                it.copy(
+                    loading = false,
+                    error = result.exceptionOrNull()?.message,
+                )
+            }
+        }
+    }
+
+    fun rejectIssuerRequest(id: String, message: String?) {
+        viewModelScope.launch {
+            _issuerUi.update { it.copy(acting = true, error = null, successMessage = null) }
+            val result = container.issuerRequestRepository.rejectRequest(id, message)
+            _issuerUi.update {
+                if (result.isSuccess) {
+                    it.copy(acting = false, successMessage = "Request rejected")
+                } else {
+                    it.copy(acting = false, error = result.exceptionOrNull()?.message)
+                }
+            }
+        }
+    }
+
+    fun approveIssuerRequest(
+        id: String,
+        claimSummary: String,
+        claimValue: String,
+        responseMessage: String?,
+    ) {
+        viewModelScope.launch {
+            _issuerUi.update { it.copy(acting = true, error = null, successMessage = null) }
+            val result = container.issuerRequestRepository.approveAndIssue(
+                id = id,
+                claimSummary = claimSummary,
+                claimValue = claimValue,
+                responseMessage = responseMessage,
+            )
+            _issuerUi.update {
+                if (result.isSuccess) {
+                    it.copy(acting = false, successMessage = "Credential issued to holder")
+                } else {
+                    it.copy(acting = false, error = result.exceptionOrNull()?.message)
+                }
+            }
+        }
+    }
 
     fun credential(id: String): StoredCredential? = container.credentialRepository.get(id)
 }

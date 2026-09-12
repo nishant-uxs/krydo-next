@@ -30,16 +30,21 @@ import dev.krydo.mobile.ui.camera.CameraPreview
 import dev.krydo.mobile.ui.camera.rememberCameraPermissionState
 import dev.krydo.mobile.ui.components.KrydoPrimaryButton
 import dev.krydo.mobile.ui.components.KrydoSecondaryButton
+import dev.krydo.mobile.ui.components.KrydoWordmark
 import dev.krydo.mobile.ui.components.StatusPill
 import dev.krydo.mobile.ui.theme.CardShape
 import dev.krydo.mobile.ui.theme.KrydoColors
 
+/**
+ * Guest / verifier path — no wallet login required.
+ * Paste a Krydo verify URL (or proof id) from a holder's ZK QR.
+ */
 @Composable
-fun ScanScreen(
+fun VerifierVerifyScreen(
     viewModel: AppViewModel,
-    onLoaded: () -> Unit,
+    onBackToLogin: () -> Unit,
 ) {
-    val state by viewModel.prove.collectAsStateWithLifecycle()
+    val ui by viewModel.verifierUi.collectAsStateWithLifecycle()
     val cameraPermission = rememberCameraPermissionState()
     var cameraOn by remember { mutableStateOf(false) }
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -60,20 +65,21 @@ fun ScanScreen(
             .background(KrydoColors.BackgroundPrimary)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
-            .padding(top = 16.dp, bottom = 100.dp),
+            .padding(top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        KrydoWordmark(subtitle = null)
         Text(
-            text = "Scan",
+            text = "Verify ZK proof",
             color = KrydoColors.TextPrimary,
-            fontSize = 28.sp,
+            fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
         )
-        StatusPill(text = "Verifier QR", dotColor = KrydoColors.Cyan)
+        StatusPill(text = "No login required", dotColor = KrydoColors.Success)
         Text(
-            text = "Open the camera to scan a verifier QR. You can still paste a request link below.",
+            text = "Scan or paste the holder’s proof link (/verify/…). Cryptographic check runs on Krydo — no wallet needed.",
             color = KrydoColors.TextMuted,
-            fontSize = 14.sp,
+            fontSize = 13.sp,
         )
 
         Box(
@@ -86,11 +92,11 @@ fun ScanScreen(
                 enabled = cameraOn && cameraPermission.granted,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp),
+                    .height(220.dp),
                 onQrDetected = { raw ->
                     cameraOn = false
-                    viewModel.setProveInput(raw)
-                    viewModel.loadRequestFromInput { onLoaded() }
+                    viewModel.setVerifierInput(raw)
+                    viewModel.verifyZkFromInput()
                 },
             )
         }
@@ -98,48 +104,77 @@ fun ScanScreen(
         when {
             !cameraPermission.granted -> {
                 KrydoPrimaryButton(
-                    text = "Allow camera permission",
+                    text = "Allow camera",
                     onClick = { cameraPermission.request() },
                 )
-                if (cameraPermission.deniedPermanently) {
-                    Text(
-                        text = "Permission denied. Enable Camera for Krydo in Android Settings → Apps.",
-                        color = KrydoColors.Error,
-                        fontSize = 12.sp,
-                    )
-                }
             }
             cameraOn -> {
                 KrydoSecondaryButton(text = "Close camera", onClick = { cameraOn = false })
                 Text(
-                    text = "Point at a verifier QR — it auto-opens the presentation request.",
+                    text = "QR auto-fills and verifies when a Krydo /verify/ link is detected.",
                     color = KrydoColors.TextMuted,
                     fontSize = 12.sp,
                 )
             }
             else -> {
-                KrydoPrimaryButton(text = "Open camera", onClick = { cameraOn = true })
+                KrydoSecondaryButton(text = "Open camera", onClick = { cameraOn = true })
             }
         }
 
         OutlinedTextField(
-            value = state.input,
-            onValueChange = viewModel::setProveInput,
-            label = { Text("Request URI or id") },
+            value = ui.input,
+            onValueChange = viewModel::setVerifierInput,
+            label = { Text("Verify URL or proof ID") },
+            placeholder = { Text("https://krydo-next.vercel.app/verify/…") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             shape = CardShape,
             colors = fieldColors,
         )
+
         KrydoPrimaryButton(
-            text = "Open request",
-            onClick = { viewModel.loadRequestFromInput { onLoaded() } },
-            enabled = !state.loading && state.input.isNotBlank(),
+            text = if (ui.loading) "Verifying…" else "Verify proof",
+            onClick = viewModel::verifyZkFromInput,
+            enabled = !ui.loading && ui.input.isNotBlank(),
             showArrow = true,
         )
-        state.error?.let {
+
+        ui.error?.let {
             Text(text = it, color = KrydoColors.Error, fontSize = 13.sp)
         }
+
+        ui.result?.let { result ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(KrydoColors.CardSurface, CardShape)
+                    .border(1.dp, KrydoColors.BorderSubtle, CardShape)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                StatusPill(
+                    text = if (result.valid) "VALID" else "INVALID",
+                    dotColor = if (result.valid) KrydoColors.Success else KrydoColors.Error,
+                )
+                Text(
+                    text = result.reason ?: if (result.valid) "Proof checks out" else "Proof rejected",
+                    color = KrydoColors.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                result.proof?.proofType?.let {
+                    Text(text = "Type: $it", color = KrydoColors.TextMuted, fontSize = 12.sp)
+                }
+                result.credential?.claimType?.let {
+                    Text(text = "Claim: $it", color = KrydoColors.TextMuted, fontSize = 12.sp)
+                }
+                result.issuer?.name?.let {
+                    Text(text = "Issuer: $it", color = KrydoColors.TextMuted, fontSize = 12.sp)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
+        KrydoSecondaryButton(text = "Back to login", onClick = onBackToLogin)
     }
 }

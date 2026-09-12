@@ -7,8 +7,10 @@ import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.mlkit.vision.MlKitAnalyzer
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -34,6 +36,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "KrydoCamera"
 
@@ -72,10 +79,13 @@ data class CameraPermissionState(
 fun CameraPreview(
     modifier: Modifier = Modifier,
     enabled: Boolean,
+    onQrDetected: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var bindError by remember { mutableStateOf<String?>(null) }
+    val handled = remember { AtomicBoolean(false) }
+    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
 
     Box(
         modifier = modifier
@@ -110,8 +120,9 @@ fun CameraPreview(
             modifier = Modifier.fillMaxSize(),
         )
 
-        LaunchedEffect(enabled) {
+        LaunchedEffect(enabled, onQrDetected) {
             if (!enabled) return@LaunchedEffect
+            handled.set(false)
             val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
             cameraProviderFuture.addListener(
                 {
@@ -120,11 +131,36 @@ fun CameraPreview(
                         val preview = Preview.Builder().build().also {
                             it.surfaceProvider = previewView.surfaceProvider
                         }
+                        val useCases = mutableListOf<androidx.camera.core.UseCase>(preview)
+                        if (onQrDetected != null) {
+                            val options = BarcodeScannerOptions.Builder()
+                                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                                .build()
+                            val scanner = BarcodeScanning.getClient(options)
+                            val analysis = ImageAnalysis.Builder()
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+                            analysis.setAnalyzer(
+                                analysisExecutor,
+                                MlKitAnalyzer(
+                                    listOf(scanner),
+                                    ImageAnalysis.COORDINATE_SYSTEM_VIEW_REFERENCED,
+                                    ContextCompat.getMainExecutor(context),
+                                ) { result ->
+                                    val barcodes = result?.getValue(scanner).orEmpty()
+                                    val raw = barcodes.firstOrNull()?.rawValue ?: return@MlKitAnalyzer
+                                    if (handled.compareAndSet(false, true)) {
+                                        onQrDetected(raw)
+                                    }
+                                },
+                            )
+                            useCases += analysis
+                        }
                         cameraProvider.unbindAll()
                         cameraProvider.bindToLifecycle(
                             lifecycleOwner,
                             CameraSelector.DEFAULT_BACK_CAMERA,
-                            preview,
+                            *useCases.toTypedArray(),
                         )
                         bindError = null
                     } catch (err: Exception) {
@@ -141,6 +177,7 @@ fun CameraPreview(
                 runCatching {
                     ProcessCameraProvider.getInstance(context).get().unbindAll()
                 }
+                analysisExecutor.shutdown()
             }
         }
 

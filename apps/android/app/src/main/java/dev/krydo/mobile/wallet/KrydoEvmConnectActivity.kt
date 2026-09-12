@@ -32,14 +32,27 @@ import kotlinx.coroutines.withContext
 /**
  * EVM connect + SIWE host.
  * Requires REOWN_PROJECT_ID and an active AppKit session (wallet approved via WalletConnect).
+ *
+ * Optional extras:
+ * - [EXTRA_WALLET_ID] / [EXTRA_WALLET_PACKAGE] — prefer a detected installed wallet.
  */
 class KrydoEvmConnectActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!EvmAppKitBridge.ready) {
+            val preferredPackage = intent.getStringExtra(EXTRA_WALLET_PACKAGE).orEmpty()
+            val preferredName = intent.getStringExtra(EXTRA_WALLET_NAME).orEmpty()
+            val preferred = KnownWallets.ALL.firstOrNull { it.packageName == preferredPackage }
+            if (preferred != null) {
+                WalletDetector.openWalletOrStore(this, preferred)
+            }
             Toast.makeText(
                 this,
-                "Set reown.projectId in local.properties, rebuild, then retry.",
+                if (preferredName.isNotBlank()) {
+                    "Opened $preferredName. Add reown.projectId in local.properties to finish SIWE."
+                } else {
+                    "Set reown.projectId in apps/android/local.properties (dashboard.reown.com), rebuild, then retry."
+                },
                 Toast.LENGTH_LONG,
             ).show()
             finish()
@@ -48,9 +61,21 @@ class KrydoEvmConnectActivity : FragmentActivity() {
 
         AppKit.register(this)
 
+        val preferredPackage = intent.getStringExtra(EXTRA_WALLET_PACKAGE).orEmpty()
+        val preferredName = intent.getStringExtra(EXTRA_WALLET_NAME).orEmpty()
+        val preferred = KnownWallets.ALL.firstOrNull { it.packageName == preferredPackage }
+
         setContent {
             KrydoTheme {
-                var status by remember { mutableStateOf("Connect a wallet, then complete SIWE.") }
+                var status by remember {
+                    mutableStateOf(
+                        if (preferredName.isNotBlank()) {
+                            "Opening $preferredName… approve Krydo in the wallet, then Complete SIWE."
+                        } else {
+                            "Connect a wallet, then complete SIWE."
+                        },
+                    )
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -59,25 +84,22 @@ class KrydoEvmConnectActivity : FragmentActivity() {
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(
-                        text = "Connect EVM Wallet",
+                        text = if (preferredName.isNotBlank()) "Connect $preferredName" else "Connect EVM Wallet",
                         color = KrydoColors.TextPrimary,
                         fontSize = 24.sp,
                     )
                     Text(
-                        text = "1) Open AppKit and approve Krydo in MetaMask / Rainbow / …\n" +
-                            "2) Tap Complete SIWE to authenticate with the Krydo API.",
+                        text = "1) Approve the WalletConnect session in your wallet.\n" +
+                            "2) Tap Complete SIWE to authenticate with Krydo.",
                         color = KrydoColors.TextMuted,
                         fontSize = 14.sp,
                     )
                     Text(text = status, color = KrydoColors.Cyan, fontSize = 13.sp)
                     KrydoPrimaryButton(
-                        text = "Open AppKit",
+                        text = if (preferredName.isNotBlank()) "Open $preferredName + AppKit" else "Open AppKit",
                         onClick = {
-                            runCatching {
-                                AppKitSheet().show(supportFragmentManager, "AppKit")
-                            }.onFailure {
-                                status = it.message ?: "Could not open AppKit"
-                            }
+                            openAppKitAndWallet(preferred)
+                            status = "Waiting for wallet approval…"
                         },
                     )
                     KrydoPrimaryButton(
@@ -101,6 +123,22 @@ class KrydoEvmConnectActivity : FragmentActivity() {
                     KrydoSecondaryButton(text = "Cancel", onClick = { finish() })
                 }
             }
+        }
+
+        // Auto-open preferred installed wallet + AppKit on first entry.
+        if (preferred != null) {
+            window.decorView.post {
+                openAppKitAndWallet(preferred)
+            }
+        }
+    }
+
+    private fun openAppKitAndWallet(wallet: KnownWallet?) {
+        runCatching {
+            AppKitSheet().show(supportFragmentManager, "AppKit")
+        }
+        if (wallet != null) {
+            WalletDetector.openWalletOrStore(this, wallet)
         }
     }
 
@@ -157,5 +195,11 @@ class KrydoEvmConnectActivity : FragmentActivity() {
                 Toast.makeText(this@KrydoEvmConnectActivity, t.message ?: "SIWE failed", Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_WALLET_ID = "wallet_id"
+        const val EXTRA_WALLET_PACKAGE = "wallet_package"
+        const val EXTRA_WALLET_NAME = "wallet_name"
     }
 }

@@ -13,8 +13,9 @@ android {
         applicationId = "dev.krydo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "0.12.0-one-tap-freighter"
+        versionCode = 18
+        versionName = "0.18.0-enhancements"
+
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://krydo.onrender.com\"")
         buildConfigField("String", "WEB_APP_URL", "\"https://krydo-next.vercel.app\"")
         // Prefer local.properties reown.projectId=... ; fallback keeps Freighter WC usable for demos.
@@ -70,10 +71,15 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
-    // Camera (Scan preview)
+    // Camera (Scan preview + QR decode)
     implementation("androidx.camera:camera-camera2:1.4.0")
     implementation("androidx.camera:camera-lifecycle:1.4.0")
     implementation("androidx.camera:camera-view:1.4.0")
+    implementation("androidx.camera:camera-mlkit-vision:1.4.0")
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+
+    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
@@ -90,6 +96,9 @@ dependencies {
 
     // Custom Tabs — Freighter Mobile connect via Krydo web WalletConnect flow
     implementation("androidx.browser:browser:1.8.0")
+
+    // QR encode (share ZK proofs)
+    implementation("com.google.zxing:core:3.5.3")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

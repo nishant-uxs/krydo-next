@@ -122,6 +122,26 @@ fun SettingsScreen(viewModel: AppViewModel) {
             fontSize = 12.sp,
         )
         Text(
+            text = "Role: ${settings.walletRole}",
+            color = KrydoColors.TextMuted,
+            fontSize = 12.sp,
+        )
+        Text(
+            text = "DID: ${settings.did.ifBlank { "—" }}",
+            color = KrydoColors.Cyan.copy(alpha = 0.9f),
+            fontSize = 12.sp,
+        )
+        Text(
+            text = "ZK proving runs on Krydo API today (device-side proving is on the roadmap).",
+            color = KrydoColors.TextMuted,
+            fontSize = 12.sp,
+        )
+        Text(
+            text = "Token set: ${if (settings.authToken.isBlank()) "no" else "yes"}",
+            color = KrydoColors.TextMuted,
+            fontSize = 12.sp,
+        )
+        Text(
             text = "Package: dev.krydo.mobile · Stellar Blue UI",
             color = KrydoColors.TextMuted,
             fontSize = 12.sp,

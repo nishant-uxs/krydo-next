@@ -26,8 +26,21 @@ papers/
 # Render CLI binary (install via scripts/install-render-cli.ps1)
 tools/render-cli/
 
+# Local build / deploy dumps
+*.log
+android-build.log
+build-err.log
+build-ok.log
+render-*.json
+vercel-*.out
+vercel-*.err
+apps/android/.kotlin/
+apps/android/stitch_preview/
+report/
+
 # LaTeX build artifacts (keep .tex source + .pdf output)
 docs/*.aux
 docs/*.log
 docs/*.out
 docs/*.toc
+.vercel

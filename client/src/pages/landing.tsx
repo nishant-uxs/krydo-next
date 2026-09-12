@@ -1,6 +1,9 @@
 import { useWallet } from "@/lib/wallet";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
+import { ConnectWalletDialog } from "@/components/connect-wallet-dialog";
+import { wantsMobileReturn, mobileAuthDeepLink } from "@/lib/mobile-return";
+import { getAuthToken } from "@/lib/auth-token";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -46,9 +49,11 @@ const stagger = {
 };
 
 export default function Landing() {
-  const { isConnected, isConnecting, connect } = useWallet();
+  const { isConnected, isConnecting, address } = useWallet();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState<"issue" | "prove" | "verify" | "governance">("prove");
+  const [walletOpen, setWalletOpen] = useState(false);
+  const mobileReturn = wantsMobileReturn();
 
   // Mouse coordinates for the background spotlight effect
   const [mousePos, setMousePos] = useState({ x: -200, y: -200 });
@@ -64,8 +69,19 @@ export default function Landing() {
   const [sandboxBlinding, setSandboxBlinding] = useState<string>("");
 
   useEffect(() => {
+    // Android Freighter handoff stays on this page until krydo://auth fires.
+    if (mobileReturn) return;
     if (isConnected) navigate("/dashboard");
-  }, [isConnected, navigate]);
+  }, [isConnected, navigate, mobileReturn]);
+
+  // Deep-link helpers: ?connect=1 | ?connect=freighter | ?connect=wallet_connect
+  useEffect(() => {
+    if (isConnected) return;
+    const params = new URLSearchParams(window.location.search);
+    const connectParam = params.get("connect");
+    if (!connectParam) return;
+    setWalletOpen(true);
+  }, [isConnected]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -146,11 +162,38 @@ export default function Landing() {
   };
 
   const handleConnectClick = () => {
-    connect();
+    setWalletOpen(true);
   };
 
   return (
     <div className="min-h-screen max-w-[100vw] overflow-x-hidden bg-background text-foreground relative stellar-space-bg grid-bg-overlay">
+      <ConnectWalletDialog open={walletOpen} onOpenChange={setWalletOpen} />
+
+      {mobileReturn && (
+        <div
+          id="krydo-mobile-return"
+          className="fixed inset-x-0 bottom-0 z-[10000] p-4"
+          style={{ display: isConnected ? "block" : "none" }}
+        >
+          <div className="mx-auto max-w-md rounded-2xl border border-[#2563EB]/40 bg-[#0D111B] p-4 shadow-xl">
+            <p className="text-sm text-[#F8FAFC] font-medium">Freighter sign-in done</p>
+            <p className="text-xs text-[#94A3B8] mt-1">
+              Tap below to return to the Krydo app (session is ready — no JWT paste).
+            </p>
+            <Button
+              className="mt-3 w-full rounded-full bg-[#2563EB]"
+              onClick={() => {
+                const token = getAuthToken();
+                if (address && token) {
+                  window.location.assign(mobileAuthDeepLink(address, token));
+                }
+              }}
+            >
+              Open Krydo app
+            </Button>
+          </div>
+        </div>
+      )}
       
       {/* DYNAMIC BACKGROUND SPOTLIGHT LIGHT EFFECT */}
       <div 

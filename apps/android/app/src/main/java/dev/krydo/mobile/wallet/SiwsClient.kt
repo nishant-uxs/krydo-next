@@ -1,5 +1,7 @@
 package dev.krydo.mobile.wallet
 
+import android.util.Log
+import dev.krydo.mobile.BuildConfig
 import dev.krydo.mobile.data.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -21,6 +23,8 @@ class SiwsClient(
     private val http = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -32,25 +36,53 @@ class SiwsClient(
         chainId: String,
         topic: String,
     ): AuthResult = withContext(Dispatchers.IO) {
-        val base = settingsRepository.settings.first().apiBaseUrl.trimEnd('/')
+        val base = resolveApiBase()
+        val url = "$base/api/auth/wc-session"
         val body = buildJsonObject {
             put("address", address)
             put("chainId", chainId)
             put("topic", topic)
             put("provider", "freighter-wc")
         }.toString()
+
+        Log.i(TAG, "POST $url")
         val resp = http.newCall(
             Request.Builder()
-                .url("$base/api/auth/wc-session")
+                .url(url)
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
                 .post(body.toRequestBody("application/json".toMediaType()))
                 .build(),
         ).execute()
+
         val text = resp.body?.string().orEmpty()
         if (!resp.isSuccessful) {
-            throw IllegalStateException("WC session login failed: $text")
+            throw IllegalStateException(
+                "Login failed (${resp.code}) at $url — ${text.take(160)}",
+            )
         }
+        if (!text.trimStart().startsWith("{")) {
+            throw IllegalStateException(
+                "API returned HTML instead of JSON at $url. Check API base URL (expected ${BuildConfig.DEFAULT_API_BASE_URL}). Got: ${text.take(80)}",
+            )
+        }
+
         val verified = json.decodeFromString(VerifyResponse.serializer(), text)
         AuthResult(token = verified.token, address = verified.wallet.address)
+    }
+
+    /**
+     * Prefer the baked-in Render API. Only keep a custom setting if it still
+     * looks like our known backends (avoids stale localhost / wrong SPA URLs).
+     */
+    private suspend fun resolveApiBase(): String {
+        val configured = settingsRepository.settings.first().apiBaseUrl.trim().trimEnd('/')
+        val allowed = configured.isNotBlank() &&
+            (configured.contains("krydo.onrender.com", ignoreCase = true) ||
+                configured.contains("krydo-next.vercel.app", ignoreCase = true) ||
+                configured.contains("localhost", ignoreCase = true) ||
+                configured.contains("10.0.2.2"))
+        return if (allowed) configured else BuildConfig.DEFAULT_API_BASE_URL.trimEnd('/')
     }
 
     @Serializable
@@ -65,4 +97,8 @@ class SiwsClient(
         val role: String? = null,
         val label: String? = null,
     )
+
+    companion object {
+        private const val TAG = "SiwsClient"
+    }
 }

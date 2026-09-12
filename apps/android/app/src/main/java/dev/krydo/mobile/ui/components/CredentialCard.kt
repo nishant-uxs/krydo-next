@@ -110,6 +110,15 @@ fun CredentialCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (!credential.claimValue.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Value: ${credential.claimValue}",
+                    color = KrydoColors.Cyan.copy(alpha = 0.95f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Expires ${credential.expiresAt?.take(10) ?: "—"}",

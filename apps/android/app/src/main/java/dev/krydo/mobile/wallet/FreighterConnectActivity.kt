@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import dev.krydo.mobile.BuildConfig
 import dev.krydo.mobile.KrydoApplication
 import dev.krydo.mobile.ui.components.KrydoPrimaryButton
 import dev.krydo.mobile.ui.components.KrydoSecondaryButton
@@ -104,6 +105,8 @@ class FreighterConnectActivity : FragmentActivity() {
             try {
                 busyState.value = true
                 statusState.value = "Opening Freighter — Approve once…"
+                // Always use the live Render API for Freighter login (avoid stale/wrong Datastore URL → HTML).
+                app.container.settingsRepository.setApiBaseUrl(BuildConfig.DEFAULT_API_BASE_URL)
                 val session = FreighterWcClient.connectFreighter(this@FreighterConnectActivity)
                 statusState.value = "Approved ${session.address.take(6)}… — saving session"
 

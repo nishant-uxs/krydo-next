@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.QrCodeScanner
+import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,12 +51,18 @@ fun HomeScreen(
     viewModel: AppViewModel,
     settings: AppSettings,
     onOpenCredentials: () -> Unit,
+    onOpenRequest: () -> Unit,
     onOpenProve: () -> Unit,
     onOpenScan: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenCredential: (String) -> Unit,
+    onOpenZk: () -> Unit = {},
+    onOpenInbox: () -> Unit = {},
 ) {
     val credentials by viewModel.credentials.collectAsStateWithLifecycle()
+    val requests by viewModel.credentialRequests.collectAsStateWithLifecycle()
+    val proofs by viewModel.zkProofs.collectAsStateWithLifecycle()
+    val inbox by viewModel.issuerInbox.collectAsStateWithLifecycle()
     val authed = settings.authToken.isNotBlank() && settings.holderAddress.isNotBlank()
     val activeCount = credentials.count {
         it.status.equals("active", true) ||
@@ -64,8 +71,11 @@ fun HomeScreen(
     }
 
     LaunchedEffect(authed) {
-        if (authed && credentials.isEmpty()) {
+        if (authed) {
             viewModel.refreshCredentials()
+            viewModel.refreshRequestFlow()
+            viewModel.refreshZkProofs()
+            if (settings.isIssuerOrRoot) viewModel.refreshIssuerInbox()
         }
     }
 
@@ -149,6 +159,41 @@ fun HomeScreen(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                 )
+                if (authed && settings.did.isNotBlank()) {
+                    Text(
+                        text = settings.did.take(28) + "…",
+                        color = KrydoColors.TextMuted,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            SectionHeader(title = "Status")
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                StatusChipHome(
+                    label = "${requests.count { it.status.equals("pending", true) }} req",
+                    onClick = onOpenRequest,
+                    modifier = Modifier.weight(1f),
+                )
+                StatusChipHome(
+                    label = "${proofs.size} proofs",
+                    onClick = onOpenZk,
+                    modifier = Modifier.weight(1f),
+                )
+                StatusChipHome(
+                    label = if (settings.isIssuerOrRoot) {
+                        "${inbox.count { it.status.equals("pending", true) }} inbox"
+                    } else {
+                        "${credentials.size} creds"
+                    },
+                    onClick = if (settings.isIssuerOrRoot) onOpenInbox else onOpenCredentials,
+                    modifier = Modifier.weight(1f),
+                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -158,18 +203,25 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 KrydoPrimaryButton(
+                    text = "Request",
+                    onClick = onOpenRequest,
+                    leadingIcon = Icons.Outlined.Send,
+                    modifier = Modifier.weight(1f),
+                )
+                KrydoSecondaryButton(
                     text = "Prove",
                     onClick = onOpenProve,
                     leadingIcon = Icons.Outlined.Shield,
                     modifier = Modifier.weight(1f),
                 )
-                KrydoSecondaryButton(
-                    text = "Scan",
-                    onClick = onOpenScan,
-                    leadingIcon = Icons.Outlined.QrCodeScanner,
-                    modifier = Modifier.weight(1f),
-                )
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            KrydoSecondaryButton(
+                text = "Scan presentation QR",
+                onClick = onOpenScan,
+                leadingIcon = Icons.Outlined.QrCodeScanner,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
             Spacer(modifier = Modifier.height(28.dp))
 
@@ -188,12 +240,18 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (credentials.isEmpty()) {
-                Text(
-                    text = "No credentials yet. Issue one to this holder, then refresh.",
-                    color = KrydoColors.TextMuted,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(vertical = 8.dp),
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "No credentials yet. Browse approved issuers and request one.",
+                        color = KrydoColors.TextMuted,
+                        fontSize = 13.sp,
+                    )
+                    KrydoPrimaryButton(
+                        text = "Request credentials",
+                        onClick = onOpenRequest,
+                        leadingIcon = Icons.Outlined.Send,
+                    )
+                }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     credentials.take(3).forEach { cred ->
@@ -232,4 +290,22 @@ fun HomeScreen(
             }
         }
     }
+}
+
+@Composable
+private fun StatusChipHome(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = label,
+        color = KrydoColors.TextPrimary,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = modifier
+            .background(KrydoColors.CardSurface, CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+    )
 }

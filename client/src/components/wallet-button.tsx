@@ -1,15 +1,7 @@
 import { useState } from "react";
 import { useWallet, shortenAddress } from "@/lib/wallet";
-import { reownConfigured } from "@/lib/reown";
+import { ConnectWalletDialog } from "@/components/connect-wallet-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,20 +12,22 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Copy, Check, Wallet } from "lucide-react";
 import { SiStellar } from "react-icons/si";
-import { EvmConnectActions } from "@/components/evm-connect-actions";
 
-export function WalletButton() {
-  const {
-    address,
-    role,
-    label,
-    isConnected,
-    isConnecting,
-    connect,
-    disconnect,
-  } = useWallet();
+export function WalletButton({
+  open: controlledOpen,
+  onOpenChange,
+  defaultOpen = false,
+}: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  defaultOpen?: boolean;
+} = {}) {
+  const { address, role, label, isConnected, disconnect } = useWallet();
   const [copied, setCopied] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const copyAddress = () => {
     if (address) {
@@ -45,55 +39,19 @@ export function WalletButton() {
 
   if (!isConnected) {
     return (
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button
-            size="sm"
-            className="rounded-full shrink-0 bg-[#2563EB] hover:bg-[#1D4ED8]"
-            data-testid="button-connect-wallet"
-          >
-            <Wallet className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Connect Wallet</span>
-            <span className="sm:hidden">Connect</span>
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md border-white/10 bg-[#0D111B] text-[#F8FAFC]">
-          <DialogHeader>
-            <DialogTitle>Connect Wallet</DialogTitle>
-            <DialogDescription className="text-[#94A3B8]">
-              Stellar uses SIWS. EVM uses Reown AppKit + SIWE when configured.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-3 pt-2">
-            <Button
-              className="w-full justify-start gap-3 rounded-full h-12 bg-[#2563EB] hover:bg-[#1D4ED8]"
-              disabled={isConnecting}
-              onClick={async () => {
-                await connect();
-                setOpen(false);
-              }}
-              data-testid="button-connect-stellar"
-            >
-              <SiStellar className="w-5 h-5" />
-              {isConnecting ? "Signing in…" : "Connect Stellar"}
-            </Button>
-            {reownConfigured ? (
-              <EvmConnectActions onAuthenticated={() => setOpen(false)} />
-            ) : (
-              <Button
-                variant="outline"
-                className="w-full rounded-full h-12 border-[#2563EB]/40 opacity-60"
-                disabled
-              >
-                EVM (set VITE_REOWN_PROJECT_ID)
-              </Button>
-            )}
-            <p className="text-[11px] text-[#94A3B8] leading-relaxed">
-              Networks: Stellar · Ethereum · Polygon · Base · Arbitrum · Optimism · BNB · Avalanche
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <>
+        <Button
+          size="sm"
+          className="rounded-full shrink-0 bg-[#2563EB] hover:bg-[#1D4ED8]"
+          data-testid="button-connect-wallet"
+          onClick={() => setOpen(true)}
+        >
+          <Wallet className="w-4 h-4 sm:mr-2" />
+          <span className="hidden sm:inline">Connect Wallet</span>
+          <span className="sm:hidden">Connect</span>
+        </Button>
+        <ConnectWalletDialog open={open} onOpenChange={setOpen} />
+      </>
     );
   }
 

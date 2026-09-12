@@ -25,8 +25,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.krydo.mobile.data.StoredCredential
 import dev.krydo.mobile.ui.AppViewModel
+import dev.krydo.mobile.ui.components.ClickableTxHash
 import dev.krydo.mobile.ui.components.CredentialCard
 import dev.krydo.mobile.ui.components.KrydoPrimaryButton
+import dev.krydo.mobile.ui.components.KrydoPullRefresh
 import dev.krydo.mobile.ui.components.KrydoSecondaryButton
 import dev.krydo.mobile.ui.components.KrydoWordmark
 import dev.krydo.mobile.ui.components.StatusPill
@@ -36,6 +38,7 @@ import dev.krydo.mobile.ui.theme.KrydoColors
 fun CredentialsScreen(
     viewModel: AppViewModel,
     onOpen: (String) -> Unit,
+    onOpenRequest: () -> Unit = {},
 ) {
     val credentials by viewModel.credentials.collectAsStateWithLifecycle()
     val ui by viewModel.credentialsUi.collectAsStateWithLifecycle()
@@ -44,6 +47,10 @@ fun CredentialsScreen(
         viewModel.refreshCredentials()
     }
 
+    KrydoPullRefresh(
+        refreshing = ui.loading,
+        onRefresh = viewModel::refreshCredentials,
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -82,6 +89,11 @@ fun CredentialsScreen(
             onClick = viewModel::refreshCredentials,
             enabled = !ui.loading,
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        KrydoSecondaryButton(
+            text = "Request from issuer",
+            onClick = onOpenRequest,
+        )
         if (ui.loading) {
             Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = KrydoColors.ElectricBlue)
@@ -97,7 +109,7 @@ fun CredentialsScreen(
         }
         if (!ui.loading && credentials.isEmpty() && ui.error == null) {
             Text(
-                text = "No credentials yet. Issue one to this holder address, then refresh.",
+                text = "No credentials yet. Open Request, pick an approved issuer, then refresh after they issue.",
                 color = KrydoColors.TextMuted,
                 modifier = Modifier.padding(top = 16.dp),
             )
@@ -110,6 +122,7 @@ fun CredentialsScreen(
                 CredentialCard(credential = cred, onClick = { onOpen(cred.id) })
             }
         }
+    }
     }
 }
 
@@ -133,11 +146,14 @@ fun CredentialDetailScreen(
         )
         if (credential != null) {
             DetailLine("Claim type", credential.claimType)
-            DetailLine("Issuer", credential.issuerAddress)
+            DetailLine("Claim value", credential.claimValue ?: "—")
+            DetailLine("Issuer", credential.issuerName)
+            DetailLine("Issuer address", credential.issuerAddress)
             DetailLine("Holder", credential.holderAddress)
             DetailLine("Status", credential.status)
             DetailLine("Summary", credential.displaySummary)
-            DetailLine("Hash", "${credential.credentialHash.take(16)}…")
+            DetailLine("Hash", credential.credentialHash)
+            ClickableTxHash(txHash = credential.onChainTxHash, label = "Issue transaction", forceOnChain = true)
         }
         Spacer(modifier = Modifier.height(8.dp))
         KrydoSecondaryButton(text = "Back", onClick = onBack)

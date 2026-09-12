@@ -131,6 +131,7 @@ fun LoginScreen(viewModel: AppViewModel) {
                 LoginStep.Onboarding -> OnboardingStep(
                     onGetStarted = { step = LoginStep.Wallets },
                     onRestore = { step = LoginStep.StellarRestore },
+                    onGuestVerify = viewModel::enterGuestVerifier,
                 )
                 LoginStep.Wallets -> WalletPickerStep(
                     onBack = { step = LoginStep.Onboarding },
@@ -178,6 +179,7 @@ fun LoginScreen(viewModel: AppViewModel) {
 private fun OnboardingStep(
     onGetStarted: () -> Unit,
     onRestore: () -> Unit,
+    onGuestVerify: () -> Unit,
 ) {
     Spacer(modifier = Modifier.height(28.dp))
     Column(
@@ -234,6 +236,11 @@ private fun OnboardingStep(
         text = "Get Started",
         onClick = onGetStarted,
         showArrow = true,
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    KrydoSecondaryButton(
+        text = "Verify proof (no login)",
+        onClick = onGuestVerify,
     )
     Spacer(modifier = Modifier.height(16.dp))
     Row(

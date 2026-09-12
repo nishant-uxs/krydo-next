@@ -335,7 +335,7 @@ export class FirestoreStorage implements IStorage {
       action: "wallet_connected",
       fromAddress: normalized,
       toAddress: null,
-      data: { role },
+      data: { role, onChain: false },
       blockNumber: NO_BLOCK,
       timestamp: new Date(),
     });
@@ -618,7 +618,7 @@ export class FirestoreStorage implements IStorage {
       action: "credential_issued",
       fromAddress: issuerAddress,
       toAddress: holderAddress,
-      data: { credentialHash: credHash, claimType: data.claimType },
+      data: { credentialHash: credHash, claimType: data.claimType, onChain: false },
       blockNumber: NO_BLOCK,
       timestamp: new Date(),
     };
@@ -644,7 +644,7 @@ export class FirestoreStorage implements IStorage {
       action: "credential_revoked",
       fromAddress: normAddr(revokedBy),
       toAddress: credential.holderAddress,
-      data: { credentialHash: credential.credentialHash, claimType: credential.claimType },
+      data: { credentialHash: credential.credentialHash, claimType: credential.claimType, onChain: false },
       blockNumber: NO_BLOCK,
       timestamp: new Date(),
     };
@@ -666,12 +666,24 @@ export class FirestoreStorage implements IStorage {
   // ----- transactions -----
 
   async updateTransactionTxHash(id: string, txHash: string): Promise<void> {
-    await collections.transactions.doc(id).update({ txHash });
+    const offChain = /^0+$/i.test(txHash);
+    const doc = await collections.transactions.doc(id).get();
+    const prev = (doc.data()?.data as Record<string, unknown> | null) ?? {};
+    await collections.transactions.doc(id).update({
+      txHash,
+      data: { ...prev, onChain: !offChain },
+    });
   }
 
   /** Update both tx hash and real block number once the on-chain receipt is in. */
   async updateTransactionOnChain(id: string, txHash: string, blockNumber: string): Promise<void> {
-    await collections.transactions.doc(id).update({ txHash, blockNumber });
+    const doc = await collections.transactions.doc(id).get();
+    const prev = (doc.data()?.data as Record<string, unknown> | null) ?? {};
+    await collections.transactions.doc(id).update({
+      txHash,
+      blockNumber,
+      data: { ...prev, onChain: true },
+    });
   }
 
   async createTransaction(data: InsertTransaction): Promise<Transaction> {

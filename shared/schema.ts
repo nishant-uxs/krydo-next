@@ -173,14 +173,17 @@ export const OFF_CHAIN_TX_HASH =
 
 /**
  * True when a transaction row represents a server-only / off-chain event
- * and MUST NOT be linked to the block explorer. Prefers the explicit
- * `data.onChain === false` flag (set by the producer), and falls back to
- * the all-zeros sentinel for legacy rows.
+ * and MUST NOT be linked to the block explorer.
+ *
+ * Only `data.onChain === true` (wallet-signed / confirmed) is treated as
+ * explorer-linkable. Synthetic `generateTxHash()` rows used to omit the flag
+ * and looked like real 64-hex Stellar hashes → "transaction not found" on
+ * stellar.expert. All-zeros sentinel remains off-chain as well.
  */
 export function isOffChainTx(tx: { txHash: string; data?: unknown }): boolean {
+  if (!tx.txHash || /^0+$/i.test(tx.txHash)) return true;
   const d = tx.data as { onChain?: boolean } | null | undefined;
-  if (d && d.onChain === false) return true;
-  return /^0+$/.test(tx.txHash);
+  return d?.onChain !== true;
 }
 
 export const requestStatuses = ["pending", "approved", "rejected", "issued"] as const;

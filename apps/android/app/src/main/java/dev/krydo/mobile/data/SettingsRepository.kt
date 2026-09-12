@@ -5,10 +5,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.krydo.mobile.BuildConfig
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "krydo_settings")
@@ -18,10 +20,17 @@ data class AppSettings(
     val holderAddress: String,
     val authToken: String,
     val onboardingDone: Boolean,
+    val walletRole: String = "user",
+    val knownCredentialCount: Int = 0,
 ) {
-    /** Verified wallet session required to leave the login gate. */
     val hasSession: Boolean
         get() = authToken.isNotBlank() && holderAddress.isNotBlank()
+
+    val isIssuerOrRoot: Boolean
+        get() = walletRole.equals("issuer", true) || walletRole.equals("root", true)
+
+    val did: String
+        get() = if (holderAddress.isBlank()) "" else "did:pkh:stellar:testnet:$holderAddress"
 }
 
 class SettingsRepository(private val context: Context) {
@@ -29,6 +38,9 @@ class SettingsRepository(private val context: Context) {
     private val holderKey = stringPreferencesKey("holder_address")
     private val tokenKey = stringPreferencesKey("auth_token")
     private val onboardingKey = booleanPreferencesKey("onboarding_done")
+    private val roleKey = stringPreferencesKey("wallet_role")
+    private val credCountKey = intPreferencesKey("known_credential_count")
+    private val offlineCredsKey = stringPreferencesKey("offline_credentials_json")
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -36,6 +48,8 @@ class SettingsRepository(private val context: Context) {
             holderAddress = prefs[holderKey].orEmpty().trim(),
             authToken = prefs[tokenKey].orEmpty().trim(),
             onboardingDone = prefs[onboardingKey] ?: false,
+            walletRole = prefs[roleKey].orEmpty().ifBlank { "user" },
+            knownCredentialCount = prefs[credCountKey] ?: 0,
         )
     }
 
@@ -51,15 +65,31 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[tokenKey] = token.trim() }
     }
 
+    suspend fun setWalletRole(role: String) {
+        context.dataStore.edit { it[roleKey] = role.trim().ifBlank { "user" } }
+    }
+
     suspend fun setOnboardingDone(done: Boolean) {
         context.dataStore.edit { it[onboardingKey] = done }
     }
+
+    suspend fun setKnownCredentialCount(count: Int) {
+        context.dataStore.edit { it[credCountKey] = count }
+    }
+
+    suspend fun saveOfflineCredentialsJson(json: String) {
+        context.dataStore.edit { it[offlineCredsKey] = json }
+    }
+
+    suspend fun loadOfflineCredentialsJson(): String =
+        context.dataStore.data.first()[offlineCredsKey].orEmpty()
 
     suspend fun clearSession() {
         context.dataStore.edit {
             it[tokenKey] = ""
             it[holderKey] = ""
             it[onboardingKey] = false
+            it[roleKey] = "user"
         }
     }
 
