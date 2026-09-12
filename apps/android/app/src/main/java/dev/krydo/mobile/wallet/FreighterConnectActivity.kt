@@ -108,16 +108,12 @@ class FreighterConnectActivity : FragmentActivity() {
                 // Always use the live Render API for Freighter login (avoid stale/wrong Datastore URL → HTML).
                 app.container.settingsRepository.setApiBaseUrl(BuildConfig.DEFAULT_API_BASE_URL)
                 val session = FreighterWcClient.connectFreighter(this@FreighterConnectActivity)
-                statusState.value = "Approved ${session.address.take(6)}… — sign in to prove wallet"
+                statusState.value = "Approved ${session.address.take(6)}… — saving session"
                 val result = withContext(Dispatchers.IO) {
                     SiwsClient(app.container.settingsRepository).authenticateFromWalletConnect(
-                        session = session,
-                        signMessage = { message ->
-                            withContext(Dispatchers.Main) {
-                                statusState.value = "Confirm Sign Message in Freighter…"
-                            }
-                            FreighterWcClient.signMessage(session, message)
-                        },
+                        address = session.address,
+                        chainId = session.chainId,
+                        topic = session.topic,
                     )
                 }
 

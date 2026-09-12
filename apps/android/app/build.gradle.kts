@@ -13,8 +13,8 @@ android {
         applicationId = "dev.krydo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "0.19.0-p0-security"
+        versionCode = 20
+        versionName = "0.20.0-wc-onetap"
 
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://krydo.onrender.com\"")
         buildConfigField("String", "WEB_APP_URL", "\"https://krydo-next.vercel.app\"")

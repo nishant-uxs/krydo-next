@@ -32,8 +32,9 @@ const verifySchema = z.object({
   signature: z.string().min(16).max(1_024),
 });
 
-/** WC login must prove address control with the same SIWS signature as /verify. */
-const wcSessionSchema = verifySchema.extend({
+/** WC one-tap: address from Freighter session (no second SEP-53 popup). */
+const wcSessionSchema = z.object({
+  address: stellarAddressSchema,
   chainId: z.string().min(3).max(64).optional(),
   topic: z.string().min(8).max(128).optional(),
   provider: z.literal("freighter-wc").default("freighter-wc"),
@@ -117,22 +118,20 @@ export function registerAuthRoutes(app: Express) {
   });
 
   /**
-   * POST /api/auth/wc-session — Freighter WalletConnect login.
-   * Requires SEP-53 signed SIWS message (same crypto as /api/auth/verify).
-   * Unsigned address-only login is rejected.
+   * POST /api/auth/wc-session — Freighter WalletConnect one-tap login.
+   * After the user Approves the WC session in Freighter, the mobile app sends
+   * the revealed G… address. No second SEP-53 sign popup (Freighter mobile
+   * signMessage is unreliable across WC versions).
+   * Web login still uses cryptographically bound POST /api/auth/verify.
    */
   app.post("/api/auth/wc-session", sensitiveLimiter, async (req: Request, res: Response) => {
     try {
-      const { address, message, signature, chainId } = wcSessionSchema.parse(req.body);
+      const { address, chainId } = wcSessionSchema.parse(req.body);
       if (chainId && !chainId.startsWith("stellar:")) {
         return res.status(400).json({ message: "chainId must be a stellar CAIP-2 id" });
       }
-      const verified = await verifySiwsOwnership(address, message, signature);
-      if (!verified.ok) {
-        return res.status(verified.status).json({ message: verified.message });
-      }
       const session = await resolveRoleAndIssueSession(address);
-      log.info({ address, chainId, provider: "freighter-wc" }, "wc-session login (SIWS)");
+      log.info({ address, chainId, provider: "freighter-wc" }, "wc-session login");
       res.json(session);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
