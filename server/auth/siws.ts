@@ -35,9 +35,10 @@ const verifySchema = z.object({
 /** WC one-tap: address from Freighter session (no second SEP-53 popup). */
 const wcSessionSchema = z.object({
   address: stellarAddressSchema,
-  chainId: z.string().min(3).max(64).optional(),
-  topic: z.string().min(8).max(128).optional(),
-  provider: z.literal("freighter-wc").default("freighter-wc"),
+  chainId: z.union([z.string().min(3).max(64), z.literal("")]).optional().nullable(),
+  topic: z.union([z.string().max(256), z.literal("")]).optional().nullable(),
+  // Accept any string; ignore unknown providers rather than 400.
+  provider: z.string().max(64).optional().nullable(),
 });
 
 async function resolveRoleAndIssueSession(address: string) {
@@ -126,16 +127,20 @@ export function registerAuthRoutes(app: Express) {
    */
   app.post("/api/auth/wc-session", sensitiveLimiter, async (req: Request, res: Response) => {
     try {
-      const { address, chainId } = wcSessionSchema.parse(req.body);
+      const parsed = wcSessionSchema.parse(req.body ?? {});
+      const address = parsed.address;
+      const chainId = parsed.chainId?.trim() || undefined;
       if (chainId && !chainId.startsWith("stellar:")) {
         return res.status(400).json({ message: "chainId must be a stellar CAIP-2 id" });
       }
       const session = await resolveRoleAndIssueSession(address);
-      log.info({ address, chainId, provider: "freighter-wc" }, "wc-session login");
+      log.info({ address, chainId, provider: parsed.provider || "freighter-wc" }, "wc-session login");
       res.json(session);
     } catch (err: any) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.issues[0].message });
+        const issue = err.issues[0];
+        const path = issue?.path?.length ? `${issue.path.join(".")}: ` : "";
+        return res.status(400).json({ message: `${path}${issue?.message || "Invalid request"}` });
       }
       log.error({ err }, "wc-session failed");
       res.status(401).json({ message: err.message || "WalletConnect session login failed" });

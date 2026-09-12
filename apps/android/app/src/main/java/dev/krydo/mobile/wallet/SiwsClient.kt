@@ -40,12 +40,16 @@ class SiwsClient(
         chainId: String,
         topic: String,
     ): AuthResult = withContext(Dispatchers.IO) {
+        val cleanAddress = address.trim().uppercase()
+        if (!cleanAddress.startsWith("G") || cleanAddress.length != 56) {
+            throw IllegalStateException("Invalid Stellar address from Freighter: ${address.take(12)}…")
+        }
         val base = resolveApiBase()
         val url = "$base/api/auth/wc-session"
         val body = buildJsonObject {
-            put("address", address)
-            put("chainId", chainId)
-            put("topic", topic)
+            put("address", cleanAddress)
+            if (chainId.isNotBlank()) put("chainId", chainId.trim())
+            if (topic.isNotBlank()) put("topic", topic.trim())
             put("provider", "freighter-wc")
         }.toString()
 
