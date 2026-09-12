@@ -114,6 +114,8 @@ export interface Credential {
   issuedAt: Date;
   revokedAt: Date | null;
   expiresAt: Date | null;
+  /** Real Stellar issue tx hash when wallet-anchored; null for off-chain / unset. */
+  onChainTxHash?: string | null;
 }
 
 /** Bounded JSON blob: max 32 KB serialized, max depth 6, max 64 keys per object. */

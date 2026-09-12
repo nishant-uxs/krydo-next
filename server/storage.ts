@@ -98,6 +98,7 @@ function credentialFromDoc(id: string, data: any): Credential {
     issuedAt: mustDate(data.issuedAt),
     revokedAt: toDate(data.revokedAt),
     expiresAt: toDate(data.expiresAt),
+    onChainTxHash: data.onChainTxHash ?? null,
   };
 }
 
@@ -673,6 +674,18 @@ export class FirestoreStorage implements IStorage {
       txHash,
       data: { ...prev, onChain: !offChain },
     });
+    // Mirror real issue hashes onto the credential doc so holders/apps
+    // can show Stellar Expert links without re-deriving from tx history.
+    const credHash = prev.credentialHash;
+    if (!offChain && typeof credHash === "string" && credHash.length > 0) {
+      const snap = await collections.credentials
+        .where("credentialHash", "==", credHash)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        await snap.docs[0].ref.set({ onChainTxHash: txHash }, { merge: true });
+      }
+    }
   }
 
   /** Update both tx hash and real block number once the on-chain receipt is in. */
@@ -684,6 +697,16 @@ export class FirestoreStorage implements IStorage {
       blockNumber,
       data: { ...prev, onChain: true },
     });
+    const credHash = prev.credentialHash;
+    if (typeof credHash === "string" && credHash.length > 0 && !/^0+$/i.test(txHash)) {
+      const snap = await collections.credentials
+        .where("credentialHash", "==", credHash)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        await snap.docs[0].ref.set({ onChainTxHash: txHash }, { merge: true });
+      }
+    }
   }
 
   async createTransaction(data: InsertTransaction): Promise<Transaction> {

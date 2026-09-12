@@ -19,6 +19,7 @@ import { toPublicCredentialView } from "../privacy/public-credential";
 import { sensitiveLimiter } from "../middleware/security";
 import { readPageOpts, sendPage } from "../middleware/pagination";
 import { childLogger } from "../logger";
+import { enrichCredentialsWithIssueTx } from "../credentials/enrich-issue-tx";
 
 const log = childLogger("routes/credentials");
 
@@ -62,7 +63,8 @@ export function registerCredentialRoutes(app: Express) {
           c.credentialHash.toLowerCase().includes(search),
         );
       }
-      sendPage(res, { items, nextCursor: page.nextCursor });
+      const enriched = await enrichCredentialsWithIssueTx(items, address);
+      sendPage(res, { items: enriched, nextCursor: page.nextCursor });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Internal server error";
       res.status(500).json({ message });
@@ -77,7 +79,8 @@ export function registerCredentialRoutes(app: Express) {
     try {
       const address = req.params.address as string;
       const page = await storage.listCredentialsByIssuerPaged(address, readPageOpts(req));
-      sendPage(res, page);
+      const enriched = await enrichCredentialsWithIssueTx(page.items, address);
+      sendPage(res, { items: enriched, nextCursor: page.nextCursor });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Internal server error";
       res.status(500).json({ message });

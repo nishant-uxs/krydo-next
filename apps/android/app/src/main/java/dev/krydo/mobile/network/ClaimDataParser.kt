@@ -30,14 +30,20 @@ object ClaimDataParser {
 
 object TxHashLookup {
     /**
-     * Only return hashes that were wallet-anchored on Stellar
-     * (`data.onChain == true`). Synthetic server hashes look like real
-     * 64-hex tx ids but 404 on stellar.expert.
+     * Prefer API-enriched issue hashes, then wallet-anchored credential_issued txs.
      */
-    fun forCredential(transactions: List<TransactionDto>, credentialHash: String): String? {
+    fun forCredential(
+        transactions: List<TransactionDto>,
+        credentialHash: String,
+        apiTxHash: String? = null,
+        apiOnChainTxHash: String? = null,
+    ): String? {
+        apiOnChainTxHash?.takeUnless { isOffChain(it) }?.let { return it }
+        apiTxHash?.takeUnless { isOffChain(it) }?.let { return it }
+
         val match = transactions.firstOrNull { tx ->
             if (tx.action != "credential_issued") return@firstOrNull false
-            if (!isExplorerLinkable(tx.txHash, tx.data)) return@firstOrNull false
+            if (!isExplorerLinkable(tx.txHash, tx.data, tx.blockNumber)) return@firstOrNull false
             val data = tx.data as? JsonObject ?: return@firstOrNull false
             val hash = data["credentialHash"]?.jsonPrimitive?.contentOrNull
             hash.equals(credentialHash, ignoreCase = true)
@@ -50,10 +56,29 @@ object TxHashLookup {
         return txHash.all { it == '0' }
     }
 
-    fun isExplorerLinkable(txHash: String?, data: JsonElement? = null): Boolean {
+    fun readOnChainFlag(data: JsonElement?): Boolean? {
+        val obj = data as? JsonObject ?: return null
+        val el = obj["onChain"] ?: return null
+        val prim = el as? JsonPrimitive ?: return null
+        prim.booleanOrNull?.let { return it }
+        return when (prim.contentOrNull?.lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+    }
+
+    fun isExplorerLinkable(
+        txHash: String?,
+        data: JsonElement? = null,
+        blockNumber: String? = null,
+    ): Boolean {
         if (txHash.isNullOrBlank() || isOffChain(txHash)) return false
-        val obj = data as? JsonObject ?: return false
-        return obj["onChain"]?.jsonPrimitive?.booleanOrNull == true
+        val onChain = readOnChainFlag(data)
+        if (onChain == true) return true
+        // Real ledger sequence means the tx was confirmed on Stellar.
+        if (!blockNumber.isNullOrBlank() && blockNumber != "0") return true
+        return false
     }
 
     fun explorerUrl(txHash: String): String =

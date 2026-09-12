@@ -95,7 +95,9 @@ data class CredentialDto(
     val status: String,
     val issuedAt: String,
     val expiresAt: String? = null,
+    /** Explorer-linkable Stellar issue tx when wallet-anchored. */
     val txHash: String? = null,
+    val onChainTxHash: String? = null,
 )
 
 @Serializable

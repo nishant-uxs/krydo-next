@@ -68,8 +68,12 @@ class CredentialRepository(
                 val issuerLabel = issuerNames[dto.issuerAddress.uppercase()]
                     ?: (dto.issuerAddress.take(8) + "…")
                 val claimValue = ClaimDataParser.extractValue(dto.claimData)
-                // Only surface explorer-linkable (wallet-anchored) hashes.
-                val txHash = TxHashLookup.forCredential(transactions, dto.credentialHash)
+                val txHash = TxHashLookup.forCredential(
+                    transactions = transactions,
+                    credentialHash = dto.credentialHash,
+                    apiTxHash = dto.txHash,
+                    apiOnChainTxHash = dto.onChainTxHash,
+                )
                 val summaryBase = dto.claimSummary?.takeIf { it.isNotBlank() } ?: dto.claimType
                 val display = if (claimValue != null) {
                     "$summaryBase · value $claimValue"

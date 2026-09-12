@@ -24,12 +24,15 @@ vi.mock("../storage", () => ({
     getWallet: vi.fn(),
     listAllCredentialsPaged: vi.fn(),
     listCredentialsForHolderPaged: vi.fn(),
+    getTransactions: vi.fn(async () => []),
+    updateTransactionTxHash: vi.fn(),
   },
 }));
 
 vi.mock("../blockchain", () => ({
   verifyCredentialOnChain: vi.fn(async () => ({ valid: true })),
   isBlockchainReady: vi.fn(() => true),
+  isChainReadable: vi.fn(() => false),
   anchorCredentialRenewalOnChain: vi.fn(),
   waitForClientTx: vi.fn(),
 }));
