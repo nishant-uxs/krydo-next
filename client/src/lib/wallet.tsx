@@ -408,6 +408,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   /**
    * Pick a specific kit module → wallet shows its own connect popup
    * (Freighter extension dialog, Freighter Mobile WC deep-link, etc.).
+   *
+   * Stellar Wallets Kit v2: `getAddress()` only reads kit memory and throws
+   * "No wallet has been connected" until the module has been fetched.
+   * Use `fetchAddress()` so Freighter runs requestAccess / getAddress.
    */
   const connectStellarWallet = useCallback(
     async (walletId: string) => {
@@ -418,7 +422,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         kit.setWallet(walletId);
         rememberWalletId(walletId);
         setWalletId(walletId);
-        const { address: addr } = await kit.getAddress();
+        const { address: addr } = await kit.fetchAddress();
         if (!addr) {
           throw new Error("No Stellar account returned. Approve the connection in your wallet.");
         }
@@ -437,8 +441,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         toast({
           title: walletId === "freighter" ? "Freighter connect failed" : "Connect failed",
           description:
-            msg.includes("not connected") || msg.includes("not available")
-              ? "Install / unlock Freighter (Chrome extension) or use WalletConnect for Freighter Mobile, then try again."
+            msg.includes("not connected") ||
+            msg.includes("not available") ||
+            msg.toLowerCase().includes("no wallet has been connected")
+              ? "Install / unlock Freighter (Chrome extension) on Testnet, click Connect again, and Approve in the Freighter popup."
               : msg,
           variant: "destructive",
         });

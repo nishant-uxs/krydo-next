@@ -50,11 +50,17 @@ function requireContract(id: string, name: string): string {
 
 async function connectedAddress(): Promise<string> {
   const kit = ensureWalletKit();
-  const got = await kit.getAddress();
-  if (!got.address) {
+  try {
+    const got = await kit.getAddress();
+    if (got.address) return got.address;
+  } catch {
+    /* kit memory empty — fetch from wallet module */
+  }
+  const fetched = await kit.fetchAddress();
+  if (!fetched.address) {
     throw new Error("No connected Stellar account. Connect your wallet first.");
   }
-  return got.address;
+  return fetched.address;
 }
 
 // ---------- ScVal builders ----------
