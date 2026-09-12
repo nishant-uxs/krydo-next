@@ -24,6 +24,7 @@ import ZkProofsPage from "@/pages/zk-proofs";
 import RequestCredentialPage from "@/pages/request-credential";
 import { useEffect } from "react";
 import { Redirect } from "wouter";
+import { SeoHead, seoForPath } from "@/components/seo-head";
 
 function AuthenticatedLayout() {
   const { isConnected } = useWallet();
@@ -82,46 +83,46 @@ function AuthenticatedLayout() {
 function Router() {
   const { isConnected } = useWallet();
   const [location] = useLocation();
+  const seo = seoForPath(location);
 
   // Public routes (no wallet required)
   const isPublicVerifyRoute = location === "/verify" || location.startsWith("/verify/");
   const isPublicDownloadRoute = location === "/download" || location === "/app";
 
-  if (isPublicDownloadRoute) {
-    return <DownloadAppPage />;
-  }
-
-  if (!isConnected && !isPublicVerifyRoute) {
-    return <Landing />;
-  }
-
-  if (isPublicVerifyRoute && !isConnected) {
-    return (
-      <div className="min-h-[100dvh] max-w-[100vw] overflow-x-hidden bg-background stellar-space-bg grid-bg-overlay">
-        <header className="border-b border-white/5 bg-background/55 backdrop-blur-xl sticky top-0 z-40">
-          <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 px-4 sm:px-6 py-3">
-            <Link
-              href="/"
-              className="flex items-center gap-2 min-w-0 rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
-              data-testid="link-logo-home"
-            >
-              <span className="font-serif font-bold text-lg truncate">Krydo</span>
-            </Link>
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <ThemeToggle />
-              <WalletButton />
+  return (
+    <>
+      <SeoHead {...seo} />
+      {isPublicDownloadRoute ? (
+        <DownloadAppPage />
+      ) : !isConnected && !isPublicVerifyRoute ? (
+        <Landing />
+      ) : isPublicVerifyRoute && !isConnected ? (
+        <div className="min-h-[100dvh] max-w-[100vw] overflow-x-hidden bg-background stellar-space-bg grid-bg-overlay">
+          <header className="border-b border-white/5 bg-background/55 backdrop-blur-xl sticky top-0 z-40">
+            <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 px-4 sm:px-6 py-3">
+              <Link
+                href="/"
+                className="flex items-center gap-2 min-w-0 rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
+                data-testid="link-logo-home"
+              >
+                <span className="font-serif font-bold text-lg truncate">Krydo</span>
+              </Link>
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <ThemeToggle />
+                <WalletButton />
+              </div>
             </div>
-          </div>
-        </header>
-        <Switch>
-          <Route path="/verify/:proofId" component={VerifyPage} />
-          <Route path="/verify" component={VerifyPage} />
-        </Switch>
-      </div>
-    );
-  }
-
-  return <AuthenticatedLayout />;
+          </header>
+          <Switch>
+            <Route path="/verify/:proofId" component={VerifyPage} />
+            <Route path="/verify" component={VerifyPage} />
+          </Switch>
+        </div>
+      ) : (
+        <AuthenticatedLayout />
+      )}
+    </>
+  );
 }
 
 function App() {

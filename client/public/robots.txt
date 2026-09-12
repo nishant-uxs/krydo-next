@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Allow: /download
+Allow: /app
+Allow: /verify
+Allow: /verify/
+
+Disallow: /dashboard
+Disallow: /issuers
+Disallow: /issue
+Disallow: /request
+Disallow: /credentials
+Disallow: /zk-proofs
+Disallow: /transactions
+
+Sitemap: https://www.krydo.in/sitemap.xml
