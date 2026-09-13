@@ -13,11 +13,11 @@ android {
         applicationId = "dev.krydo.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 27
-        versionName = "0.27.0-polish"
+        versionCode = 28
+        versionName = "0.28.0-domain"
 
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://krydo.onrender.com\"")
-        buildConfigField("String", "WEB_APP_URL", "\"https://krydo-next.vercel.app\"")
+        buildConfigField("String", "WEB_APP_URL", "\"https://www.krydo.in\"")
         // Demo-only off-chain issue. Must also set ALLOW_OFFCHAIN_ISSUE=true on the API.
         val allowOffChain = (project.findProperty("allowOffChainIssue") as String?)?.trim()
             .equals("true", ignoreCase = true)

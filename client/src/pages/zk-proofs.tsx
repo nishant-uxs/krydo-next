@@ -23,6 +23,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { SITE_URL } from "@/components/seo-head";
 import {
   ShieldCheck,
   Lock,
@@ -724,12 +725,12 @@ export default function ZkProofsPage() {
                 <div className="flex flex-col items-center gap-2">
                   <div className="bg-white p-3 rounded-xl shadow-md border">
                     <QrCodeCanvas
-                      value={`${window.location.origin}/verify/${generatedProof.id}`}
+                      value={`${SITE_URL}/verify/${generatedProof.id}`}
                       size={160}
                     />
                   </div>
                   <code className="font-mono text-[9px] text-muted-foreground break-all text-center px-4 max-w-xs mt-1 block">
-                    {`${window.location.origin}/verify/${generatedProof.id}`}
+                    {`${SITE_URL}/verify/${generatedProof.id}`}
                   </code>
                 </div>
               </div>
@@ -755,7 +756,7 @@ export default function ZkProofsPage() {
             <div className="flex flex-col items-center gap-3.5 py-3 font-sans">
               <div className="bg-white p-3 rounded-xl shadow-md border">
                 <QrCodeCanvas
-                  value={`${window.location.origin}/verify/${qrProofId}`}
+                  value={`${SITE_URL}/verify/${qrProofId}`}
                   size={200}
                 />
               </div>
@@ -764,14 +765,14 @@ export default function ZkProofsPage() {
               </p>
               
               <div className="w-full bg-muted/40 p-2.5 rounded-xl border font-mono text-[9px] text-muted-foreground break-all text-center">
-                {`${window.location.origin}/verify/${qrProofId}`}
+                {`${SITE_URL}/verify/${qrProofId}`}
               </div>
               
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/verify/${qrProofId}`);
+                  navigator.clipboard.writeText(`${SITE_URL}/verify/${qrProofId}`);
                   toast({ title: "Verification link copied", description: "Proof URL copied to clipboard." });
                 }}
                 className="w-full font-semibold rounded-full border-border/80 hover:bg-primary/5 hover:text-primary transition-all duration-300 gap-1.5"

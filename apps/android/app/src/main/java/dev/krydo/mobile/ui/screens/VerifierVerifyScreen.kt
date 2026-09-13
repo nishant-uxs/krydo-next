@@ -125,7 +125,7 @@ fun VerifierVerifyScreen(
             value = ui.input,
             onValueChange = viewModel::setVerifierInput,
             label = { Text("Verify URL or proof ID") },
-            placeholder = { Text("https://krydo-next.vercel.app/verify/…") },
+            placeholder = { Text("https://www.krydo.in/verify/…") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             shape = CardShape,

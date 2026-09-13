@@ -23,7 +23,9 @@ object QrRequestParser {
         }
 
         if (input.startsWith("krydo://", ignoreCase = true) ||
-            input.startsWith("https://krydo.dev/", ignoreCase = true)
+            input.startsWith("https://krydo.dev/", ignoreCase = true) ||
+            input.startsWith("https://www.krydo.in/", ignoreCase = true) ||
+            input.startsWith("https://krydo.in/", ignoreCase = true)
         ) {
             val uri = android.net.Uri.parse(input)
             val id = uri.getQueryParameter("request")
