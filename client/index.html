@@ -38,9 +38,11 @@
     />
     <meta name="twitter:image" content="https://www.krydo.in/og-image.svg" />
 
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
     <script type="application/ld+json">
@@ -49,7 +51,12 @@
         "@type": "Organization",
         "name": "Krydo",
         "url": "https://www.krydo.in",
-        "logo": "https://www.krydo.in/favicon.svg",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://www.krydo.in/logo.png",
+          "width": 512,
+          "height": 512
+        },
         "description": "Privacy-preserving financial trust infrastructure on Stellar with verifiable credentials and zero-knowledge proofs.",
         "sameAs": ["https://github.com/nishant-uxs/krydo-next"]
       }

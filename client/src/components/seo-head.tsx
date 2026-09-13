@@ -89,7 +89,12 @@ export function applySeo(config: SeoConfig = {}) {
       "@type": "Organization",
       name: "Krydo",
       url: SITE_URL,
-      logo: `${SITE_URL}/favicon.svg`,
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/logo.png`,
+        width: 512,
+        height: 512,
+      },
       description: DEFAULT_DESCRIPTION,
       sameAs: [
         "https://github.com/nishant-uxs/krydo-next",
