@@ -19,6 +19,7 @@ import IssueCredentialPage from "@/pages/issue-credential";
 import CredentialsPage from "@/pages/credentials";
 import VerifyPage from "@/pages/verify";
 import DownloadAppPage from "@/pages/download-app";
+import AboutPage from "@/pages/about";
 import TransactionsPage from "@/pages/transactions";
 import ZkProofsPage from "@/pages/zk-proofs";
 import RequestCredentialPage from "@/pages/request-credential";
@@ -88,11 +89,14 @@ function Router() {
   // Public routes (no wallet required)
   const isPublicVerifyRoute = location === "/verify" || location.startsWith("/verify/");
   const isPublicDownloadRoute = location === "/download" || location === "/app";
+  const isPublicAboutRoute = location === "/about";
 
   return (
     <>
       <SeoHead {...seo} />
-      {isPublicDownloadRoute ? (
+      {isPublicAboutRoute ? (
+        <AboutPage />
+      ) : isPublicDownloadRoute ? (
         <DownloadAppPage />
       ) : !isConnected && !isPublicVerifyRoute ? (
         <Landing />
