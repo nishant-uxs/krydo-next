@@ -6,13 +6,13 @@
     <title>Krydo — Privacy-Preserving Financial Trust on Stellar</title>
     <meta
       name="description"
-      content="Prove income, credit score, or eligibility with verifiable credentials and zero-knowledge proofs on Stellar Soroban — without revealing sensitive data. Live at krydo.in."
+      content="Krydo (krydo.in) — Stellar Soroban verifiable credentials and zero-knowledge proofs. Prove income or credit score without revealing the raw number. Not related to Kreedo education."
     />
     <meta
       name="keywords"
-      content="Krydo, Stellar, Soroban, verifiable credentials, zero knowledge proofs, ZK proofs, SSI, Sign-In with Stellar, SIWS, financial privacy, India, Freighter"
+      content="Krydo, krydo.in, founder of Krydo, Nishant Agarwal, Stellar, Soroban, verifiable credentials, zero knowledge proofs, SSI, SIWS, Krydo vs Kreedo, financial privacy India"
     />
-    <meta name="author" content="Krydo" />
+    <meta name="author" content="Nishant Agarwal, Adarsh Agrahari" />
     <meta name="application-name" content="Krydo" />
     <meta name="theme-color" content="#0B1220" />
     <meta name="color-scheme" content="dark light" />
@@ -59,6 +59,7 @@
             "@type": "Organization",
             "@id": "https://www.krydo.in/#organization",
             "name": "Krydo",
+            "alternateName": ["Krydo SSI", "Krydo Stellar", "Krydo Next"],
             "url": "https://www.krydo.in",
             "logo": {
               "@type": "ImageObject",
@@ -67,15 +68,34 @@
               "height": 512
             },
             "description": "Privacy-preserving financial trust infrastructure on Stellar with verifiable credentials and zero-knowledge proofs.",
+            "disambiguatingDescription": "Krydo is a Stellar blockchain verifiable-credentials and ZK-proofs product at krydo.in. It is not Kreedo Early Childhood Solutions.",
+            "foundingDate": "2026",
+            "founder": [
+              {
+                "@type": "Person",
+                "name": "Nishant Agarwal",
+                "url": "https://nishantx.in",
+                "jobTitle": "Co-founder",
+                "sameAs": ["https://github.com/nishant-uxs", "https://nishantx.in"]
+              },
+              {
+                "@type": "Person",
+                "name": "Adarsh Agrahari",
+                "jobTitle": "Co-founder"
+              }
+            ],
             "sameAs": [
               "https://github.com/nishant-uxs/krydo-next",
-              "https://github.com/nishant-uxs/krydo-stellar"
-            ]
+              "https://github.com/nishant-uxs/krydo-stellar",
+              "https://nishantx.in"
+            ],
+            "knowsAbout": ["Stellar", "Soroban", "verifiable credentials", "zero-knowledge proofs"]
           },
           {
             "@type": "WebSite",
             "@id": "https://www.krydo.in/#website",
             "name": "Krydo",
+            "alternateName": "krydo.in",
             "url": "https://www.krydo.in",
             "description": "Prove financial credibility with verifiable credentials and zero-knowledge proofs on Stellar Soroban.",
             "publisher": { "@id": "https://www.krydo.in/#organization" },
@@ -85,6 +105,7 @@
             "@type": "SoftwareApplication",
             "@id": "https://www.krydo.in/#webapp",
             "name": "Krydo",
+            "alternateName": "Krydo on Stellar",
             "applicationCategory": "FinanceApplication",
             "operatingSystem": "Web, Android",
             "url": "https://www.krydo.in",
@@ -105,7 +126,23 @@
                 "name": "What is Krydo?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "Krydo is privacy-preserving financial trust infrastructure on Stellar. Issuers write credential hashes to Soroban smart contracts; holders prove predicates with zero-knowledge proofs without revealing raw claim values."
+                  "text": "Krydo (krydo.in) is privacy-preserving financial trust infrastructure on Stellar. Issuers write credential hashes to Soroban smart contracts; holders prove predicates with zero-knowledge proofs without revealing raw claim values."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Who founded Krydo?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Krydo was founded by Nishant Agarwal and Adarsh Agrahari (Bennett University). The product runs on Stellar Soroban. More at https://www.krydo.in/about."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is Krydo the same as Kreedo?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. Krydo is a Stellar blockchain credentials and ZK-proofs product at krydo.in. It is unrelated to Kreedo Early Childhood Solutions."
                 }
               },
               {
@@ -151,7 +188,8 @@
           Issuers mint credential hashes on-chain. Holders share ZK proofs. Verifiers see the
           statement, never the raw claim value.
         </p>
-        <p><a href="https://www.krydo.in/download">Download Android APK</a> ·
+        <p><a href="https://www.krydo.in/about">About Krydo / founders</a> ·
+          <a href="https://www.krydo.in/download">Download Android APK</a> ·
           <a href="https://www.krydo.in/verify">Public verifier</a> ·
           <a href="https://github.com/nishant-uxs/krydo-next">GitHub</a></p>
       </main>

@@ -3,8 +3,10 @@ import { useEffect } from "react";
 const SITE_URL = "https://www.krydo.in";
 const DEFAULT_TITLE = "Krydo — Privacy-Preserving Financial Trust on Stellar";
 const DEFAULT_DESCRIPTION =
-  "Prove income, credit score, or eligibility with verifiable credentials and zero-knowledge proofs on Stellar Soroban — without revealing sensitive data. Live at krydo.in.";
+  "Krydo (krydo.in) is a Stellar Soroban product for verifiable credentials and zero-knowledge proofs — prove income or credit score without revealing the raw number. Unrelated to Kreedo education.";
 const DEFAULT_IMAGE = `${SITE_URL}/og-image.png`;
+const DISAMBIGUATION =
+  "Krydo is a Stellar blockchain verifiable-credentials and ZK-proofs product at krydo.in. It is not Kreedo Early Childhood Solutions.";
 const OG_IMAGE_WIDTH = "1200";
 const OG_IMAGE_HEIGHT = "630";
 
@@ -91,12 +93,14 @@ export function applySeo(config: SeoConfig = {}) {
   upsertMeta("name", "twitter:image", image);
   upsertMeta("name", "twitter:image:alt", "Krydo — privacy-preserving financial trust on Stellar");
 
-  if (!config.noIndex && (path === "/" || path === "")) {
+  if (!config.noIndex && (path === "/" || path === "" || path === "/about")) {
     upsertJsonLd("krydo-jsonld-org", {
       "@context": "https://schema.org",
       "@type": "Organization",
       "@id": `${SITE_URL}/#organization`,
       name: "Krydo",
+      legalName: "Krydo",
+      alternateName: ["Krydo SSI", "Krydo Stellar", "Krydo Next"],
       url: SITE_URL,
       logo: {
         "@type": "ImageObject",
@@ -105,9 +109,38 @@ export function applySeo(config: SeoConfig = {}) {
         height: 512,
       },
       description: DEFAULT_DESCRIPTION,
+      disambiguatingDescription: DISAMBIGUATION,
+      foundingDate: "2026",
+      founder: [
+        {
+          "@type": "Person",
+          "@id": `${SITE_URL}/#nishant`,
+          name: "Nishant Agarwal",
+          url: "https://nishantx.in",
+          jobTitle: "Co-founder",
+          sameAs: [
+            "https://github.com/nishant-uxs",
+            "https://nishantx.in",
+          ],
+        },
+        {
+          "@type": "Person",
+          "@id": `${SITE_URL}/#adarsh`,
+          name: "Adarsh Agrahari",
+          jobTitle: "Co-founder",
+        },
+      ],
       sameAs: [
         "https://github.com/nishant-uxs/krydo-next",
         "https://github.com/nishant-uxs/krydo-stellar",
+        "https://nishantx.in",
+      ],
+      knowsAbout: [
+        "Stellar",
+        "Soroban",
+        "verifiable credentials",
+        "zero-knowledge proofs",
+        "self-sovereign identity",
       ],
     });
     upsertJsonLd("krydo-jsonld-website", {
@@ -115,6 +148,7 @@ export function applySeo(config: SeoConfig = {}) {
       "@type": "WebSite",
       "@id": `${SITE_URL}/#website`,
       name: "Krydo",
+      alternateName: "krydo.in",
       url: SITE_URL,
       description: DEFAULT_DESCRIPTION,
       publisher: { "@id": `${SITE_URL}/#organization` },
@@ -124,6 +158,7 @@ export function applySeo(config: SeoConfig = {}) {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       name: "Krydo",
+      alternateName: "Krydo on Stellar",
       applicationCategory: "FinanceApplication",
       operatingSystem: "Web, Android",
       url: SITE_URL,
@@ -159,6 +194,17 @@ export function SeoHead(config: SeoConfig) {
 /** Map wouter location → SEO config for public + app routes. */
 export function seoForPath(pathname: string): SeoConfig {
   const path = pathname.split("?")[0] || "/";
+
+  if (path === "/about") {
+    return {
+      path: "/about",
+      title: "What is Krydo? Founders & Brand | Stellar Credentials (not Kreedo)",
+      description:
+        "Krydo (krydo.in) is a Stellar Soroban verifiable-credentials and ZK-proofs product founded by Nishant Agarwal and Adarsh Agrahari. Unrelated to Kreedo Early Childhood Solutions.",
+      keywords:
+        "What is Krydo, founder of Krydo, Nishant Agarwal, Adarsh Agrahari, Krydo vs Kreedo, Stellar SSI, krydo.in",
+    };
+  }
 
   if (path === "/download" || path === "/app") {
     return {
@@ -217,7 +263,7 @@ export function seoForPath(pathname: string): SeoConfig {
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
     keywords:
-      "Krydo, Stellar, Soroban, verifiable credentials, zero knowledge proofs, ZK proofs, SSI, Sign-In with Stellar, financial privacy India",
+      "Krydo, krydo.in, founder of Krydo, Nishant Agarwal, Stellar, Soroban, verifiable credentials, zero knowledge proofs, Krydo vs Kreedo, SSI India",
   };
 }
 
