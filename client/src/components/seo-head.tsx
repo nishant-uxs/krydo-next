@@ -121,6 +121,7 @@ export function applySeo(config: SeoConfig = {}) {
           sameAs: [
             "https://github.com/nishant-uxs",
             "https://nishantx.in",
+            "https://dev.to/agarwalnishant812",
           ],
         },
         {
@@ -134,6 +135,9 @@ export function applySeo(config: SeoConfig = {}) {
         "https://github.com/nishant-uxs/krydo-next",
         "https://github.com/nishant-uxs/krydo-stellar",
         "https://nishantx.in",
+        "https://dev.to/agarwalnishant812",
+        "https://dev.to/agarwalnishant812/what-is-krydo-and-why-google-keeps-saying-kreedo-kk1",
+        "https://github.com/nishant-uxs",
       ],
       knowsAbout: [
         "Stellar",
