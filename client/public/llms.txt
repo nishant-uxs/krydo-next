@@ -1,0 +1,20 @@
+# Krydo
+
+> Privacy-preserving financial trust on Stellar (Soroban).
+
+Krydo lets issuers anchor verifiable credential hashes on Stellar and lets holders prove predicates with zero-knowledge proofs — without revealing raw claim values (salary, score, etc.).
+
+## Product
+- Website: https://www.krydo.in
+- Android download: https://www.krydo.in/download
+- Public verifier: https://www.krydo.in/verify
+- Network: Stellar Testnet (Soroban)
+- Auth: Sign-In with Stellar (SIWS / SEP-53)
+- Contracts: KrydoAuthority, KrydoCredentials, KrydoAudit
+
+## Code
+- Primary: https://github.com/nishant-uxs/krydo-next
+- SIH / demo lineage: https://github.com/nishant-uxs/krydo-stellar
+
+## Contact
+- Site: https://www.krydo.in

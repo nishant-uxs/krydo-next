@@ -1,12 +1,14 @@
 {
-  "name": "Krydo",
+  "name": "Krydo — Privacy Trust on Stellar",
   "short_name": "Krydo",
-  "description": "Privacy-preserving financial trust on Stellar — credentials and ZK proofs.",
+  "description": "Privacy-preserving financial trust on Stellar — verifiable credentials and zero-knowledge proofs.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0B1220",
   "theme_color": "#0B1220",
-  "lang": "en",
+  "lang": "en-IN",
+  "categories": ["finance", "productivity"],
   "icons": [
     {
       "src": "/favicon-48.png",
