@@ -3,8 +3,10 @@ import { useEffect } from "react";
 const SITE_URL = "https://www.krydo.in";
 const DEFAULT_TITLE = "Krydo — Privacy-Preserving Financial Trust on Stellar";
 const DEFAULT_DESCRIPTION =
-  "Prove financial credibility with verifiable credentials and zero-knowledge proofs — without revealing sensitive data. Built on Stellar Soroban.";
-const DEFAULT_IMAGE = `${SITE_URL}/og-image.svg`;
+  "Prove income, credit score, or eligibility with verifiable credentials and zero-knowledge proofs on Stellar Soroban — without revealing sensitive data. Live at krydo.in.";
+const DEFAULT_IMAGE = `${SITE_URL}/og-image.png`;
+const OG_IMAGE_WIDTH = "1200";
+const OG_IMAGE_HEIGHT = "630";
 
 export type SeoConfig = {
   title?: string;
@@ -63,9 +65,11 @@ export function applySeo(config: SeoConfig = {}) {
   upsertMeta(
     "name",
     "robots",
-    config.noIndex ? "noindex, nofollow" : "index, follow, max-image-preview:large",
+    config.noIndex
+      ? "noindex, nofollow"
+      : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
   );
-  upsertMeta("name", "googlebot", config.noIndex ? "noindex, nofollow" : "index, follow");
+  upsertMeta("name", "googlebot", config.noIndex ? "noindex, nofollow" : "index, follow, max-image-preview:large");
 
   upsertLink("canonical", url);
 
@@ -76,17 +80,22 @@ export function applySeo(config: SeoConfig = {}) {
   upsertMeta("property", "og:description", description);
   upsertMeta("property", "og:url", url);
   upsertMeta("property", "og:image", image);
-  upsertMeta("property", "og:image:alt", "Krydo — privacy-preserving financial trust");
+  upsertMeta("property", "og:image:type", image.endsWith(".svg") ? "image/svg+xml" : "image/png");
+  upsertMeta("property", "og:image:width", OG_IMAGE_WIDTH);
+  upsertMeta("property", "og:image:height", OG_IMAGE_HEIGHT);
+  upsertMeta("property", "og:image:alt", "Krydo — privacy-preserving financial trust on Stellar");
 
   upsertMeta("name", "twitter:card", "summary_large_image");
   upsertMeta("name", "twitter:title", title);
   upsertMeta("name", "twitter:description", description);
   upsertMeta("name", "twitter:image", image);
+  upsertMeta("name", "twitter:image:alt", "Krydo — privacy-preserving financial trust on Stellar");
 
   if (!config.noIndex && (path === "/" || path === "")) {
     upsertJsonLd("krydo-jsonld-org", {
       "@context": "https://schema.org",
       "@type": "Organization",
+      "@id": `${SITE_URL}/#organization`,
       name: "Krydo",
       url: SITE_URL,
       logo: {
@@ -98,21 +107,28 @@ export function applySeo(config: SeoConfig = {}) {
       description: DEFAULT_DESCRIPTION,
       sameAs: [
         "https://github.com/nishant-uxs/krydo-next",
+        "https://github.com/nishant-uxs/krydo-stellar",
       ],
     });
     upsertJsonLd("krydo-jsonld-website", {
       "@context": "https://schema.org",
       "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
       name: "Krydo",
       url: SITE_URL,
       description: DEFAULT_DESCRIPTION,
+      publisher: { "@id": `${SITE_URL}/#organization` },
+      inLanguage: "en-IN",
     });
     upsertJsonLd("krydo-jsonld-software", {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
-      name: "Krydo Android",
-      operatingSystem: "Android",
+      name: "Krydo",
       applicationCategory: "FinanceApplication",
+      operatingSystem: "Web, Android",
+      url: SITE_URL,
+      description:
+        "Issue and verify privacy-preserving credentials on Stellar using Soroban contracts and sigma-protocol ZK proofs.",
       offers: {
         "@type": "Offer",
         price: "0",
@@ -147,22 +163,33 @@ export function seoForPath(pathname: string): SeoConfig {
   if (path === "/download" || path === "/app") {
     return {
       path: "/download",
-      title: "Download Krydo Android APK | Privacy-Preserving Credentials",
+      title: "Download Krydo Android APK | ZK Credentials on Stellar",
       description:
-        "Download the Krydo Android APK to hold credentials, scan verifier QRs, and share zero-knowledge proofs on Stellar.",
+        "Download the Krydo Android APK — hold Stellar-anchored credentials, scan verifier QRs, and share zero-knowledge proofs without revealing raw claim data.",
       keywords:
-        "Krydo APK, Android download, verifiable credentials, ZK proofs, Stellar wallet app",
+        "Krydo APK, Android download, verifiable credentials, ZK proofs, Stellar, Freighter, SIWS",
     };
   }
 
-  if (path === "/verify" || path.startsWith("/verify/")) {
+  // Public verifier landing — indexable.
+  if (path === "/verify") {
     return {
-      path: path.startsWith("/verify/") ? "/verify" : path,
+      path: "/verify",
       title: "Verify Credentials & ZK Proofs | Krydo Public Verifier",
       description:
-        "Public Krydo verifier — check credential anchors and zero-knowledge proof validity without seeing plaintext claim values.",
+        "Open a Krydo proof link and check the on-chain credential anchor plus zero-knowledge validity — without seeing plaintext claim values. Built on Stellar Soroban.",
       keywords:
-        "verify credential, ZK proof verifier, zero knowledge, Stellar Soroban, Krydo",
+        "verify credential, ZK proof verifier, zero knowledge, Stellar Soroban, Krydo, SIWS",
+    };
+  }
+
+  // Per-proof URLs are thin / ephemeral — keep them out of the index.
+  if (path.startsWith("/verify/")) {
+    return {
+      path,
+      title: "Verify Proof | Krydo",
+      description: DEFAULT_DESCRIPTION,
+      noIndex: true,
     };
   }
 
@@ -190,7 +217,7 @@ export function seoForPath(pathname: string): SeoConfig {
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
     keywords:
-      "Krydo, zero knowledge proofs, verifiable credentials, Stellar, Soroban, financial privacy, SSI, ZK credentials India",
+      "Krydo, Stellar, Soroban, verifiable credentials, zero knowledge proofs, ZK proofs, SSI, Sign-In with Stellar, financial privacy India",
   };
 }
 
