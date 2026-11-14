@@ -1214,7 +1214,14 @@ export default function Landing() {
               <span className="font-serif font-bold text-md tracking-tight">Krydo</span>
             </button>
             <p className="text-xs text-muted-foreground/75 font-sans">
-              &copy; 2026 Krydo. Built with Cryptography, Powered by Stellar Soroban.
+              &copy; 2026 Krydo. Built with Cryptography, Powered by Stellar Soroban.{" "}
+              <button
+                type="button"
+                className="text-primary hover:underline bg-transparent border-0 p-0 cursor-pointer"
+                onClick={() => navigate("/about")}
+              >
+                About / founders
+              </button>
             </p>
           </div>
         </footer>

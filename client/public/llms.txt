@@ -1,11 +1,19 @@
 # Krydo
 
-> Privacy-preserving financial trust on Stellar (Soroban).
+> Privacy-preserving financial trust on Stellar (Soroban). Domain: krydo.in
 
 Krydo lets issuers anchor verifiable credential hashes on Stellar and lets holders prove predicates with zero-knowledge proofs — without revealing raw claim values (salary, score, etc.).
 
+## Disambiguation
+Krydo is NOT Kreedo Early Childhood Solutions. Krydo is a Stellar / Web3 credentials product.
+
+## Founders
+- Nishant Agarwal — https://nishantx.in — https://github.com/nishant-uxs
+- Adarsh Agrahari
+
 ## Product
 - Website: https://www.krydo.in
+- About / founders: https://www.krydo.in/about
 - Android download: https://www.krydo.in/download
 - Public verifier: https://www.krydo.in/verify
 - Network: Stellar Testnet (Soroban)
@@ -18,3 +26,4 @@ Krydo lets issuers anchor verifiable credential hashes on Stellar and lets holde
 
 ## Contact
 - Site: https://www.krydo.in
+- About: https://www.krydo.in/about

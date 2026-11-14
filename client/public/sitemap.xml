@@ -12,6 +12,12 @@
     </image:image>
   </url>
   <url>
+    <loc>https://www.krydo.in/about</loc>
+    <lastmod>2026-11-14</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.95</priority>
+  </url>
+  <url>
     <loc>https://www.krydo.in/download</loc>
     <lastmod>2026-11-14</lastmod>
     <changefreq>weekly</changefreq>

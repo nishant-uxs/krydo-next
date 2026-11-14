@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Allow: /about
 Allow: /download
 Allow: /app
 Allow: /verify
