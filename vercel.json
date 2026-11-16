@@ -18,7 +18,7 @@
       "destination": "https://krydo.onrender.com/readyz"
     },
     {
-      "source": "/((?!.*\\.).*)",
+      "source": "/((?!about(?:/|$)|download(?:/|$)|app(?:/|$)|verify(?:/|$)|.*\\.).*)",
       "destination": "/index.html"
     }
   ],
