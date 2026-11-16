@@ -29,6 +29,10 @@ async function buildAll() {
   console.log("building client...");
   await viteBuild();
 
+  console.log("prerendering SEO HTML shells...");
+  const { prerenderSeoHtml } = await import("./prerender-seo-html");
+  await prerenderSeoHtml();
+
   console.log("building server...");
   const pkg = JSON.parse(await readFile("package.json", "utf-8"));
   const allDeps = [
